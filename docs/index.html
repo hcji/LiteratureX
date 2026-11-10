@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LiteratureX — 本地优先的 AI 文献工作台</title>
+    <meta
+      name="description"
+      content="LiteratureX 是一个本地优先的学术文献工作台：期刊 RSS 发现、文献库、内置 PDF 阅读器、LLM 分类与 AI 助手。"
+    />
+    <meta property="og:title" content="LiteratureX — 本地优先的 AI 文献工作台" />
+    <meta
+      property="og:description"
+      content="RSS 发现、文献管理、内置 PDF 阅读器、LLM 自动分类与 AI 助手，全部在一个桌面应用中。"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="screenshots/library.png" />
+    <link rel="icon" href="icon.png" />
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./">
+        <span class="brand-mark">Lx</span>
+        <span>LiteratureX</span>
+      </a>
+      <nav>
+        <a href="#features">功能</a>
+        <a href="#screens">界面</a>
+        <a href="#download">下载</a>
+        <a class="nav-github" href="https://github.com/hcji/LiteratureX">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="eyebrow">Windows 10/11 · x64 · MIT</span>
+          <h1>本地优先的<br />AI 文献工作台</h1>
+          <p>
+            从期刊 RSS 发现、文献库管理，到内置 PDF 阅读与 LLM 分类，LiteratureX
+            把整条科研阅读流程放进一个桌面应用。数据默认保存在本机。
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="https://github.com/hcji/LiteratureX/releases/latest">
+              下载最新版
+            </a>
+            <a class="button ghost" href="https://github.com/hcji/LiteratureX">查看源码</a>
+          </div>
+          <div class="hero-notes">
+            <span>无需注册</span>
+            <span>本地 SQLite</span>
+            <span>兼容 OpenAI API</span>
+          </div>
+        </div>
+        <div class="hero-shot">
+          <img src="screenshots/library.png" alt="LiteratureX 我的文库界面" />
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section-head">
+          <span class="eyebrow">Features</span>
+          <h2>为日常科研阅读设计</h2>
+          <p>简洁的界面，实用的能力，不需要在多个工具之间来回切换。</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature">
+            <span class="feature-icon">01</span>
+            <h3>期刊 RSS 发现</h3>
+            <p>搜索期刊并自动发现 RSS/Atom 源，订阅、分组、增量同步，新文章自动进入发现页。</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon">02</span>
+            <h3>统一文献库</h3>
+            <p>RSS、PDF、DOI 与 BibTeX/RIS 导入统一管理，支持元数据补全、分类、笔记与全文检索。</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon">03</span>
+            <h3>内置 PDF 阅读器</h3>
+            <p>连续滚动阅读、缩放与适应宽度；右侧元数据可一键收起，也可随时改用系统应用打开。</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon">04</span>
+            <h3>LLM 自动分类</h3>
+            <p>订阅文章自动打标签，未分类文献批量整理；可设置新增类别上限、抽样条数与思考深度。</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon">05</span>
+            <h3>AI 文献助手</h3>
+            <p>基于你的文献库进行总结、比较、趋势分析与问答；回答引用真实文献，不编造来源。</p>
+          </article>
+          <article class="feature">
+            <span class="feature-icon">06</span>
+            <h3>WPS / Word 插件</h3>
+            <p>在 WPS Writer 或 Microsoft Word 中搜索文献、插入引用并生成参考文献表。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section workflow">
+        <div class="workflow-line">
+          <span>发现</span><i></i><span>入库</span><i></i><span>分类</span><i></i><span>阅读</span><i></i><span>检索</span><i></i><span>写作</span>
+        </div>
+      </section>
+
+      <section id="screens" class="section">
+        <div class="section-head">
+          <span class="eyebrow">Interface</span>
+          <h2>干净、直接、信息密度刚好</h2>
+        </div>
+        <div class="screen-grid">
+          <figure>
+            <img src="screenshots/library.png" alt="我的文库界面" loading="lazy" />
+            <figcaption>我的文库：表格、筛选、分类与内置阅读器</figcaption>
+          </figure>
+          <figure>
+            <img src="screenshots/discover.png" alt="文献发现界面" loading="lazy" />
+            <figcaption>发现：订阅期刊、智能排序与分类标签</figcaption>
+          </figure>
+          <figure>
+            <img src="screenshots/assistant.png" alt="AI 文献助手界面" loading="lazy" />
+            <figcaption>AI 助手：基于本地文献的总结与问答</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section id="download" class="section download">
+        <div>
+          <span class="eyebrow">Download</span>
+          <h2>下载 LiteratureX</h2>
+          <p>Windows 10/11 x64。提供安装包与免安装便携版；首次运行可能被 SmartScreen 提示，因为安装包未签名。</p>
+        </div>
+        <div class="download-card">
+          <div>
+            <strong>v0.1.0</strong>
+            <span>Windows · x64</span>
+          </div>
+          <div class="download-actions">
+            <a class="button primary" href="https://github.com/hcji/LiteratureX/releases/latest">
+              安装包 / 便携版
+            </a>
+            <a class="button ghost" href="https://github.com/hcji/LiteratureX/releases">全部版本</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-inner">
+        <span>LiteratureX · 本地优先的学术文献工作台</span>
+        <div>
+          <a href="https://github.com/hcji/LiteratureX">GitHub</a>
+          <a href="https://github.com/hcji/LiteratureX/blob/main/LICENSE">MIT License</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

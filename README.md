@@ -4,7 +4,10 @@ LiteratureX 是一个**本地优先的 AI 文献工作台**，把期刊 RSS 发�
 
 > Local-first academic literature intelligence: journal RSS discovery → article collection → AI classification → unified library → search → AI assistant.
 
-GitHub: <https://github.com/hcji/LiteratureX>
+GitHub: <https://github.com/hcji/LiteratureX>  
+网站：<https://hcji.github.io/LiteratureX/>
+
+Windows 10/11 x64 安装包与便携版：[最新 Release](https://github.com/hcji/LiteratureX/releases/latest)
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
@@ -86,11 +89,7 @@ GitHub: <https://github.com/hcji/LiteratureX>
 | RSS | rss-parser + cheerio |
 | AI | OpenAI 兼容 `/chat/completions` + 本地启发式分类器 |
 | 测试 | Vitest（单元/集成）+ Playwright（Electron E2E） |
-| 打包 | electron-builder（`release/win-unpacked`） |
-
-### 关于 Tauri
-
-原始需求推荐 Tauri 2 + Rust。本机环境审计发现 **Node.js、Rust、MSVC/Windows SDK 均不存在**，Tauri 构建需要管理员安装约 8GB 的 Visual Studio Build Tools，风险高且不可自动化。因此采用 Electron 替代桌面壳，保留 prompt 指定的 React/TypeScript/Vite/Tailwind 前端栈与全部产品能力。详细权衡见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+| 打包 | electron-builder（NSIS 安装包 + portable） |
 
 ## 快速开始（开发）
 
@@ -196,13 +195,9 @@ npm run test:e2e
 
 ## 文档
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — 系统架构与关键决策
-- [DATABASE.md](DATABASE.md) — 数据库 ER 图与表说明
-- [OFFICE_PLUGIN.md](docs/OFFICE_PLUGIN.md) — WPS / Word 文献插件的架构、安装与限制
-- [AI_CLASSIFICATION.md](AI_CLASSIFICATION.md) — 分类逻辑、Prompt、阈值与人工覆盖规则
-- [DEVELOPMENT.md](DEVELOPMENT.md) — 开发环境、里程碑与验证记录
-- [TODO.md](TODO.md) — 后续工作
-- [CHANGELOG.md](CHANGELOG.md) — 变更历史
+- [WPS / Word 文献插件安装与限制](docs/OFFICE_PLUGIN.md)
+- [GitHub Releases](https://github.com/hcji/LiteratureX/releases)
+- [项目网站](https://hcji.github.io/LiteratureX/)
 
 ## License
 
