@@ -26,6 +26,7 @@
       </a>
       <nav>
         <a href="#features">功能</a>
+        <a href="#usage">使用</a>
         <a href="#screens">界面</a>
         <a href="#download">下载</a>
         <a class="nav-github" href="https://github.com/hcji/LiteratureX">GitHub</a>
@@ -104,6 +105,51 @@
         </div>
       </section>
 
+      <section id="usage" class="section">
+        <div class="section-head">
+          <span class="eyebrow">How to use</span>
+          <h2>四步开始你的文献库</h2>
+          <p>不需要先配置 AI，所有核心功能都可以本地使用；需要时再接入 OpenAI 兼容模型。</p>
+        </div>
+        <ol class="steps">
+          <li>
+            <span class="step-no">01</span>
+            <div>
+              <h3>导入 PDF 或订阅期刊</h3>
+              <p>在「我的文库」导入单个/多个 PDF、整个文件夹，或直接拖入窗口；在「发现」搜索期刊名/ISSN，自动发现 RSS 源并同步新文章。</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-no">02</span>
+            <div>
+              <h3>建立分类体系</h3>
+              <p>在「分类合集」创建多级分类，填写关键词、同义词和分类规则。分类可以多选合并，并由 LLM 生成合并后的名称、描述和关键词。</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-no">03</span>
+            <div>
+              <h3>让 AI 整理未分类文献</h3>
+              <p>打开「未分类」，运行「LLM 整理未分类」。可设置最多新增类别数、抽样条数、是否发送全文（默认仅题目/摘要）和思考深度（默认中低）。</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-no">04</span>
+            <div>
+              <h3>阅读、检索与写作</h3>
+              <p>双击文献在内置阅读器中连续滚动阅读；用全文搜索或 AI 助手总结、比较与问答；在 WPS/Word 中插入引用并生成参考文献表。</p>
+            </div>
+          </li>
+        </ol>
+        <div class="shortcut-row">
+          <span>快捷键</span>
+          <b>Ctrl+1…6</b> 切换页面
+          <b>Ctrl+F</b> 搜索
+          <b>Ctrl+,</b> 设置
+          <b>Esc</b> 关闭详情/阅读器
+        </div>
+      </section>
+
       <section id="screens" class="section">
         <div class="section-head">
           <span class="eyebrow">Interface</span>
@@ -122,6 +168,39 @@
             <img src="screenshots/assistant.png" alt="AI 文献助手界面" loading="lazy" />
             <figcaption>AI 助手：基于本地文献的总结与问答</figcaption>
           </figure>
+          <figure>
+            <img src="screenshots/reader.png" alt="内置 PDF 阅读器" loading="lazy" />
+            <figcaption>内置阅读器：连续滚动，右侧元数据可收起</figcaption>
+          </figure>
+          <figure>
+            <img src="screenshots/organize.png" alt="LLM 自动整理设置" loading="lazy" />
+            <figcaption>自动整理：新增类别上限、抽样、全文与思考深度</figcaption>
+          </figure>
+          <figure>
+            <img src="screenshots/settings.png" alt="设置界面" loading="lazy" />
+            <figcaption>设置：AI、RSS、存储、插件与备份</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="section faq">
+        <div class="section-head">
+          <span class="eyebrow">FAQ</span>
+          <h2>常见问题</h2>
+        </div>
+        <div class="faq-grid">
+          <article>
+            <h3>数据保存在哪里？</h3>
+            <p>默认在 <code>%APPDATA%\LiteratureX</code>：SQLite 数据库、PDF 与自动备份都在本机。</p>
+          </article>
+          <article>
+            <h3>必须配置 AI 吗？</h3>
+            <p>不需要。未配置 API Key 时，分类使用本地关键词分类器，助手提供抽取式摘要与库内检索。</p>
+          </article>
+          <article>
+            <h3>如何备份或迁移？</h3>
+            <p>在「设置 → 数据与备份」创建完整备份，包含数据库（不含明文 Key）与托管 PDF，可在新机器恢复。</p>
+          </article>
         </div>
       </section>
 
