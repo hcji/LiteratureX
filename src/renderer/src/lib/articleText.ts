@@ -13,6 +13,7 @@ export interface ArticleTranslationEntry {
   abstract: string | null
   fields: 'title' | 'all'
   model?: string | null
+  sourceSignature: string
 }
 
 interface ArticleTextState {
@@ -20,11 +21,22 @@ interface ArticleTextState {
   limits: Record<string, number>
   started: Record<string, number>
   failures: Record<string, string>
-  apply: (language: Language, entries: Array<{ articleId: string; title: string; abstract?: string | null; fields: 'title' | 'all'; model?: string | null }>) => void
+  apply: (
+    language: Language,
+    entries: Array<{
+      articleId: string
+      title: string
+      abstract?: string | null
+      fields: 'title' | 'all'
+      model?: string | null
+      sourceSignature: string
+    }>
+  ) => void
   addStarted: (language: Language, count: number) => void
   setFailure: (language: Language, message: string) => void
   clearFailure: (language: Language) => void
   raiseLimit: (language: Language, amount: number) => void
+  drop: (language: Language, articleId: string) => void
 }
 
 const DEFAULT_AUTO_LIMIT = 80
@@ -44,7 +56,8 @@ export const useArticleTextStore = create<ArticleTextState>((set, get) => ({
         title: entry.title,
         abstract: entry.abstract ?? null,
         fields: entry.fields,
-        model: entry.model ?? null
+        model: entry.model ?? null,
+        sourceSignature: entry.sourceSignature
       }
     }
     set({
@@ -57,7 +70,14 @@ export const useArticleTextStore = create<ArticleTextState>((set, get) => ({
   clearFailure: (language) =>
     set({ failures: { ...get().failures, [language]: '' } }),
   raiseLimit: (language, amount) =>
-    set({ limits: { ...get().limits, [language]: (get().limits[language] ?? DEFAULT_AUTO_LIMIT) + amount } })
+    set({ limits: { ...get().limits, [language]: (get().limits[language] ?? DEFAULT_AUTO_LIMIT) + amount } }),
+  drop: (language, articleId) => {
+    const current = get().translations[language]
+    if (!current?.[articleId]) return
+    const next = { ...current }
+    delete next[articleId]
+    set({ translations: { ...get().translations, [language]: next } })
+  }
 }))
 
 export function resolveArticleTextLanguage(
@@ -82,6 +102,10 @@ export function articleNeedsTranslation(article: Pick<Article, 'title' | 'abstra
   if (!sample) return false
   const hasCjk = textIsCjk(sample)
   return target === 'zh' ? !hasCjk : hasCjk
+}
+
+function sourceSignature(article: Pick<Article, 'title' | 'abstract'>): string {
+  return `${article.title}\u0000${article.abstract ?? ''}`
 }
 
 interface WantedEntry {
@@ -145,24 +169,38 @@ export function ensureArticleTranslation(
   const cached = state.translations[target]?.[article.id]
   const detail = options.detail === true
   const includeAbstract = options.includeAbstract === true && Boolean(article.abstract)
-  if (cached && (!includeAbstract || cached.fields === 'all' || !article.abstract)) return
+  const signature = sourceSignature(article)
+  if (cached && cached.sourceSignature !== signature) {
+    state.drop(target, article.id)
+  } else if (
+    cached &&
+    cached.sourceSignature === signature &&
+    (!includeAbstract || cached.fields === 'all' || !article.abstract)
+  ) {
+    return
+  }
   if (!aiConfigured()) return
   if (Date.now() < retryAfter) return
   const key = keyOf(target, article.id)
   const existing = wanted.get(key)
   if (existing) {
-    let changed = false
-    if (detail && !existing.detail) {
-      existing.detail = true
-      priorityFor(target).add(article.id)
-      changed = true
+    if (sourceSignature(existing.article) !== signature) {
+      requested.delete(key)
+      wanted.delete(key)
+    } else {
+      let changed = false
+      if (detail && !existing.detail) {
+        existing.detail = true
+        priorityFor(target).add(article.id)
+        changed = true
+      }
+      if (includeAbstract && !existing.includeAbstract) {
+        existing.includeAbstract = true
+        changed = true
+      }
+      if (changed) scheduleFlush(30)
+      return
     }
-    if (includeAbstract && !existing.includeAbstract) {
-      existing.includeAbstract = true
-      changed = true
-    }
-    if (changed) scheduleFlush(30)
-    return
   }
   const started = state.started[target] ?? 0
   const limit = state.limits[target] ?? DEFAULT_AUTO_LIMIT
@@ -205,6 +243,12 @@ async function flush(): Promise<void> {
       const regularIds = [...(pending.get(language) ?? [])].filter((id) => !detailIds.includes(id))
       const batch = [...detailIds.slice(0, 8), ...regularIds.slice(0, 20)].slice(0, 24)
       if (!batch.length) break
+      const batchSignatures = new Map(
+        batch.map((id) => {
+          const wantedEntry = wanted.get(keyOf(language, id))
+          return [keyOf(language, id), wantedEntry ? sourceSignature(wantedEntry.article) : ''] as const
+        })
+      )
       for (const id of batch) {
         priority.get(language)?.delete(id)
         pending.get(language)?.delete(id)
@@ -215,11 +259,21 @@ async function flush(): Promise<void> {
       })
       try {
         const result = await window.api.articles.translate(batch, language, includeAbstract)
-        useArticleTextStore.getState().apply(language, result.translations)
+        useArticleTextStore.getState().apply(
+          language,
+          result.translations.map((translation) => ({
+            ...translation,
+            sourceSignature: batchSignatures.get(keyOf(language, translation.articleId)) ?? ''
+          }))
+        )
         useArticleTextStore.getState().addStarted(language, batch.length)
         for (const entry of result.translations) {
-          requested.delete(keyOf(language, entry.articleId))
-          wanted.delete(keyOf(language, entry.articleId))
+          const key = keyOf(language, entry.articleId)
+          const current = wanted.get(key)
+          if (!current || batchSignatures.get(key) === sourceSignature(current.article)) {
+            requested.delete(key)
+            wanted.delete(key)
+          }
         }
       } catch (error) {
         const message = errorMessage(error)

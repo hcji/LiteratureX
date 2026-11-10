@@ -483,6 +483,15 @@ export class ArticleRepo {
       values.push(nowIso())
       values.push(articleId)
       this.db.prepare(`UPDATE articles SET ${sets.join(', ')} WHERE id = ?`).run(...values)
+      const refreshed = this.db.prepare('SELECT title, abstract FROM articles WHERE id = ?').get(articleId) as
+        | { title: string; abstract: string | null }
+        | undefined
+      if (
+        refreshed &&
+        (refreshed.title !== row.title || (refreshed.abstract ?? '') !== (row.abstract ?? ''))
+      ) {
+        this.db.prepare('DELETE FROM article_translations WHERE article_id = ?').run(articleId)
+      }
       const authorCount = this.db.prepare('SELECT COUNT(*) AS c FROM article_authors WHERE article_id = ?').get(articleId) as { c: number }
       if (authorCount.c === 0 && input.authors?.length) this.setAuthors(articleId, input.authors)
       this.refreshSearchIndex(articleId)
@@ -570,6 +579,9 @@ export class ArticleRepo {
       if (editedByUser && edited.size) {
         sets.push('user_edited_fields = ?')
         values.push(JSON.stringify([...edited]))
+      }
+      if (patch.title !== undefined || patch.abstract !== undefined) {
+        this.db.prepare('DELETE FROM article_translations WHERE article_id = ?').run(id)
       }
       if (!sets.length) return this.get(id)
       sets.push('updated_at = ?')

@@ -173,7 +173,7 @@ export function ArticleFeedItem({
           ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <InterestScoreBadge score={interestScore} />
-            <TranslationBadge translated={display.translatedTitle} />
+            <TranslationBadge translated={display.translatedTitle || display.translatedAbstract} />
             <CategoryChips categories={article.categories} max={2} />
             {article.categories.length === 0 ? (
               <Badge variant="outline">{t('library.unclassified')}</Badge>

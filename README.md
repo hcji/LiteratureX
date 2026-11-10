@@ -90,8 +90,8 @@ Windows 10/11 x64 安装包与便携版：[最新 Release](https://github.com/hc
 ## 下载与安装
 
 - [最新 Release](https://github.com/hcji/LiteratureX/releases/latest)
-  - `LiteratureX.Setup.0.2.0.exe`：Windows 安装包
-  - `LiteratureX.0.2.0.exe`：免安装便携版
+  - `LiteratureX.Setup.0.2.1.exe`：Windows 安装包
+  - `LiteratureX.0.2.1.exe`：免安装便携版
 - 系统要求：Windows 10/11 x64
 - 安装包未签名，首次运行可能被 Windows SmartScreen 提示
 - 首次启动为空库，可直接导入 PDF 或添加期刊

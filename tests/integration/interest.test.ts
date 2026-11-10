@@ -235,6 +235,9 @@ describe('interest profile and article translation', () => {
     expect(rows[0].title).toBe('质谱代谢组学（修订）')
     expect(rows[0].fields).toBe('all')
     expect(rows[0].abstract).toBe('摘要。')
+
+    articles.update(item.id, { title: 'Revised source title' })
+    expect(articles.getTranslations([item.id], 'zh')).toHaveLength(0)
   })
 
   it('translates article titles and abstracts through an OpenAI-compatible endpoint', async () => {
