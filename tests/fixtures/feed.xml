@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Journal of Natural Products</title>
+    <link>https://pubs.acs.org/journal/jnprdf</link>
+    <description>Latest articles</description>
+    <item>
+      <title>Deep Learning for Predicting Tandem Mass Spectra of Plant Natural Products</title>
+      <link>https://pubs.acs.org/doi/10.1021/acs.jnatprod.4c00123</link>
+      <guid isPermaLink="false">10.1021/acs.jnatprod.4c00123</guid>
+      <dc:creator>Hongchao Ji; Mei Wang; Li Zhang</dc:creator>
+      <pubDate>Mon, 04 Mar 2024 00:00:00 GMT</pubDate>
+      <description><![CDATA[<p>We present a <b>deep learning</b> model for MS/MS spectral prediction and molecular networking of plant natural products.</p>]]></description>
+      <category>Article</category>
+      <category>mass spectrometry</category>
+    </item>
+    <item>
+      <title>Spatial Metabolomics of Medicinal Plants Using Mass Spectrometry Imaging</title>
+      <link>https://pubs.acs.org/doi/10.1021/acs.jnatprod.4c00456</link>
+      <guid isPermaLink="false">10.1021/acs.jnatprod.4c00456</guid>
+      <dc:creator>Anna Lee and Peter Chen</dc:creator>
+      <pubDate>Tue, 12 Mar 2024 00:00:00 GMT</pubDate>
+      <description>Spatial metabolomics reveals the distribution of specialized metabolites in medicinal plant tissues.</description>
+      <category>Article</category>
+    </item>
+  </channel>
+</rss>
