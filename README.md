@@ -41,6 +41,7 @@ Windows 10/11 x64 安装包与便携版：[最新 Release](https://github.com/hc
 
 ### 用户自定义 AI 分类（Collections）
 - 任意层级分类树：名称、描述、关键词、同义词、分类指令、优先级、颜色、启停。
+- 分类关键词与同义词按界面语言显示和编辑（中文或 English，二选一）；另一种语言的数据保留，切换界面语言即可编辑，不会同时出现。
 - AI 多标签分类，返回结构化 JSON：分类、置信度、证据、匹配关键词、理由、摘要、未匹配主题、是否需人工复核。
 - 高/中/低置信度策略与可配置阈值。
 - 审核队列、证据展示、分类历史；人工接受/拒绝/手动增删。
@@ -90,8 +91,8 @@ Windows 10/11 x64 安装包与便携版：[最新 Release](https://github.com/hc
 ## 下载与安装
 
 - [最新 Release](https://github.com/hcji/LiteratureX/releases/latest)
-  - `LiteratureX.Setup.0.2.1.exe`：Windows 安装包
-  - `LiteratureX.0.2.1.exe`：免安装便携版
+  - `LiteratureX.Setup.0.2.2.exe`：Windows 安装包
+  - `LiteratureX.0.2.2.exe`：免安装便携版
 - 系统要求：Windows 10/11 x64
 - 安装包未签名，首次运行可能被 Windows SmartScreen 提示
 - 首次启动为空库，可直接导入 PDF 或添加期刊

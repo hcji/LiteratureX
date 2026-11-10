@@ -554,16 +554,20 @@ export function CollectionsPage() {
                         {selected.instructions}
                       </div>
                     ) : null}
-                    {selected.keywords.length ? (
+                    {selected.keywords.some((keyword) =>
+                      language === 'zh' ? keyword.keywordZh : keyword.keywordEn
+                    ) ? (
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {selected.keywords.map((keyword) => (
-                          <Badge key={keyword.id} variant={keyword.kind === 'synonym' ? 'outline' : 'secondary'}>
-                            {keyword.kind === 'synonym' ? '≈ ' : ''}
-                            {language === 'zh'
-                              ? keyword.keywordZh ?? keyword.keyword
-                              : keyword.keywordEn ?? keyword.keyword}
-                          </Badge>
-                        ))}
+                        {selected.keywords.map((keyword) => {
+                          const label = language === 'zh' ? keyword.keywordZh : keyword.keywordEn
+                          if (!label) return null
+                          return (
+                            <Badge key={keyword.id} variant={keyword.kind === 'synonym' ? 'outline' : 'secondary'}>
+                              {keyword.kind === 'synonym' ? '≈ ' : ''}
+                              {label}
+                            </Badge>
+                          )
+                        })}
                       </div>
                     ) : null}
                   </div>
@@ -977,7 +981,7 @@ function CategoryDialog({
   parentPreset: string | null
   onSaved: (category: Category) => void
 }) {
-  const { t } = useT()
+  const { t, language } = useT()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     name: '',
@@ -1150,39 +1154,36 @@ function CategoryDialog({
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label={t('collections.keywordsZh')} hint={t('collections.keywordsHint')}>
+            <Field
+              label={language === 'zh' ? t('collections.keywordsZh') : t('collections.keywordsEn')}
+              hint={t('collections.keywordsHint')}
+            >
               <Textarea
                 rows={3}
-                value={form.keywordsZh}
-                onChange={(event) => update('keywordsZh', event.target.value)}
-                placeholder={t('collections.keywordsZhPlaceholder')}
+                value={language === 'zh' ? form.keywordsZh : form.keywordsEn}
+                onChange={(event) => update(language === 'zh' ? 'keywordsZh' : 'keywordsEn', event.target.value)}
+                placeholder={
+                  language === 'zh' ? t('collections.keywordsZhPlaceholder') : t('collections.keywordsPlaceholder')
+                }
               />
             </Field>
-            <Field label={t('collections.keywordsEn')} hint={t('collections.keywordsHint')}>
+            <Field
+              label={language === 'zh' ? t('collections.synonymsZh') : t('collections.synonymsEn')}
+              hint={t('collections.synonymsHint')}
+            >
               <Textarea
                 rows={3}
-                value={form.keywordsEn}
-                onChange={(event) => update('keywordsEn', event.target.value)}
-                placeholder={t('collections.keywordsPlaceholder')}
-              />
-            </Field>
-            <Field label={t('collections.synonymsZh')} hint={t('collections.synonymsHint')}>
-              <Textarea
-                rows={3}
-                value={form.synonymsZh}
-                onChange={(event) => update('synonymsZh', event.target.value)}
-                placeholder={t('collections.synonymsZhPlaceholder')}
-              />
-            </Field>
-            <Field label={t('collections.synonymsEn')} hint={t('collections.synonymsHint')}>
-              <Textarea
-                rows={3}
-                value={form.synonymsEn}
-                onChange={(event) => update('synonymsEn', event.target.value)}
-                placeholder={t('collections.synonymsPlaceholder')}
+                value={language === 'zh' ? form.synonymsZh : form.synonymsEn}
+                onChange={(event) => update(language === 'zh' ? 'synonymsZh' : 'synonymsEn', event.target.value)}
+                placeholder={
+                  language === 'zh' ? t('collections.synonymsZhPlaceholder') : t('collections.synonymsPlaceholder')
+                }
               />
             </Field>
           </div>
+          <p className="-mt-1 text-[10px] leading-relaxed text-muted-foreground/75">
+            {t('collections.keywordsLanguageHint')}
+          </p>
           <div className="grid grid-cols-3 items-end gap-3">
             <Field label={t('collections.color')}>
               <div className="flex flex-wrap gap-1.5 pt-1">

@@ -9,6 +9,7 @@ import type {
   CategoryPatch,
   TaxonomySuggestion
 } from '@shared/types'
+import { isCjk } from '@shared/normalize'
 import type { AppDatabase } from '../database'
 
 interface CategoryRow {
@@ -36,7 +37,9 @@ export class CategoryRepo {
   constructor(
     private readonly database: AppDatabase,
     private readonly onAssignmentsChanged: (articleIds: string[]) => void = () => {}
-  ) {}
+  ) {
+    this.backfillKeywordLanguages()
+  }
 
   private get db(): DatabaseSync {
     return this.database.db
@@ -376,8 +379,33 @@ export class CategoryRepo {
       const keywordZh = item.keywordZh?.trim() || null
       const primary = keyword || keywordEn || keywordZh
       if (!primary) continue
-      insert.run(randomUUID(), categoryId, primary, keywordEn, keywordZh, item.kind ?? 'keyword', item.weight ?? 1)
+      // Keep each localized field one-sided so the UI can show only the active language.
+      const localizedEn = keywordEn ?? (isCjk(primary) ? null : primary)
+      const localizedZh = keywordZh ?? (isCjk(primary) ? primary : null)
+      insert.run(randomUUID(), categoryId, primary, localizedEn, localizedZh, item.kind ?? 'keyword', item.weight ?? 1)
     }
+  }
+
+  /** Backfills the localized keyword column for rows created before bilingual editing existed. */
+  backfillKeywordLanguages(): number {
+    const rows = this.db
+      .prepare('SELECT id, keyword, keyword_en, keyword_zh FROM category_keywords')
+      .all() as Array<{ id: string; keyword: string; keyword_en: string | null; keyword_zh: string | null }>
+    const update = this.db.prepare(
+      'UPDATE category_keywords SET keyword_en = ?, keyword_zh = ? WHERE id = ?'
+    )
+    let changed = 0
+    for (const row of rows) {
+      const primary = row.keyword.trim()
+      if (!primary) continue
+      const localizedEn = row.keyword_en ?? (isCjk(primary) ? null : primary)
+      const localizedZh = row.keyword_zh ?? (isCjk(primary) ? primary : null)
+      if (localizedEn !== row.keyword_en || localizedZh !== row.keyword_zh) {
+        update.run(localizedEn, localizedZh, row.id)
+        changed += 1
+      }
+    }
+    return changed
   }
 
   articleIdsForCategories(categoryIds: string[]): string[] {

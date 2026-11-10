@@ -429,13 +429,16 @@ export class AppContext {
     const opId = this.operationId('merge-suggest')
     this.emitOperation({ opId, kind: 'assistant', status: 'running' })
     try {
+      const language = this.settings.get().appearance.language
       const suggestion = await this.classifier.suggestMergedCategory(
         selected.map((category) => ({
           name: category.path ?? category.name,
           description: category.description,
-          keywords: category.keywords.map((keyword) => keyword.keyword)
+          keywords: category.keywords
+            .map((keyword) => (language === 'zh' ? keyword.keywordZh : keyword.keywordEn))
+            .filter((keyword): keyword is string => Boolean(keyword))
         })),
-        this.settings.get().appearance.language
+        language
       )
       this.emitOperation({ opId, kind: 'assistant', status: 'done', percent: 1 })
       return suggestion

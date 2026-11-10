@@ -425,7 +425,7 @@ export const zh = {
   'collections.activated': '分类已启用',
   'collections.deactivated': '分类已停用',
   'collections.keywords': '关键词',
-  'collections.keywordsZh': '中文分类词',
+  'collections.keywordsZh': '中文关键词',
   'collections.keywordsEn': 'English keywords',
   'collections.keywordsZhPlaceholder': '例如：质谱, 串联质谱',
   'collections.synonyms': '同义词',
@@ -434,6 +434,8 @@ export const zh = {
   'collections.synonymsZhPlaceholder': '例如：质谱分析, 串联质谱',
   'collections.keywordsHint': '每行一个，或使用逗号分隔',
   'collections.synonymsHint': '同义词会以较低权重参与本地分类',
+  'collections.keywordsLanguageHint':
+    '仅显示当前界面语言的关键词与同义词；另一种语言的数据会保留。切换界面语言即可编辑另一语言。',
   'collections.aiSuggestions': 'AI 分类体系建议',
   'collections.generateSuggestions': '分析并提出建议',
   'collections.generating': '正在分析…',
@@ -1263,6 +1265,8 @@ export const en: Record<TranslationKey, string> = {
   'collections.synonymsZhPlaceholder': 'e.g. 质谱分析, 串联质谱',
   'collections.keywordsHint': 'One per line, or comma-separated',
   'collections.synonymsHint': 'Synonyms contribute with lower weight to local classification',
+  'collections.keywordsLanguageHint':
+    'Only keywords and synonyms in the current interface language are shown. The other language is preserved; switch the interface language to edit it.',
   'collections.aiSuggestions': 'Taxonomy suggestions',
   'collections.generateSuggestions': 'Analyze and suggest',
   'collections.generating': 'Analyzing…',

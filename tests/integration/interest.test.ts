@@ -189,6 +189,32 @@ describe('interest profile and article translation', () => {
     expect(report.similarArticles[0].title).toContain('Deep learning')
   })
 
+  it('stores category keywords in one language and backfills legacy rows', () => {
+    const english = categories.create({
+      name: 'English category',
+      keywords: [{ keyword: 'mass spectrometry' }]
+    })
+    expect(english.keywords[0].keywordEn).toBe('mass spectrometry')
+    expect(english.keywords[0].keywordZh).toBeNull()
+
+    const chinese = categories.create({
+      name: '中文分类',
+      keywords: [{ keyword: '质谱' }]
+    })
+    expect(chinese.keywords[0].keywordZh).toBe('质谱')
+    expect(chinese.keywords[0].keywordEn).toBeNull()
+
+    database.db
+      .prepare("INSERT INTO category_keywords (id, category_id, keyword, kind, weight) VALUES (?, ?, ?, 'keyword', 1)")
+      .run('legacy-keyword', chinese.id, '代谢组学')
+    expect(categories.backfillKeywordLanguages()).toBe(1)
+    const legacy = categories
+      .get(chinese.id)
+      ?.keywords.find((keyword) => keyword.keyword === '代谢组学')
+    expect(legacy?.keywordZh).toBe('代谢组学')
+    expect(legacy?.keywordEn).toBeNull()
+  })
+
   it('counts assigned category tags for subscription articles', () => {
     const category = categories.create({ name: 'Metabolomics' })
     const subscription = subscriptions.create({
