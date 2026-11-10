@@ -11,7 +11,9 @@ import {
   ExternalLink,
   FileText,
   FolderOpen,
+  Gauge,
   Info,
+  Languages,
   LayoutList,
   List,
   MoreHorizontal,
@@ -29,6 +31,7 @@ import {
 import type { Article, SearchResponseItem, Subscription, SubscriptionGroup } from '@shared/types'
 import { useT } from '../i18n'
 import { useAppStore } from '../store/appStore'
+import { resolveArticleTextLanguage, translateMoreArticles, useArticleTextStore } from '../lib/articleText'
 import { cn, errorMessage, relativeTime } from '../lib/utils'
 import { PageHeader, PanelHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/button'
@@ -43,6 +46,7 @@ import { copyText } from '../components/ArticleBits'
 import { ContextMenu, type ContextMenuItem } from '../components/ui/context-menu'
 import { ArticleDetailPanel } from '../components/ArticleDetailPanel'
 import { AddJournalDialog } from '../components/AddJournalDialog'
+import { MatchEvaluationDialog } from '../components/MatchEvaluationDialog'
 import {
   Dialog,
   DialogBody,
@@ -67,10 +71,13 @@ import {
 
 type DiscoverFilter = 'all' | 'unread' | 'starred' | 'recent'
 
+type FeedSort = 'publication_date' | 'created_at' | 'smart' | 'interest'
+
 function sortFeedArticles(
   list: Article[],
-  sort: 'publication_date' | 'created_at' | 'smart',
-  order: 'asc' | 'desc'
+  sort: FeedSort,
+  order: 'asc' | 'desc',
+  scores?: Record<string, { score: number }>
 ): Article[] {
   const factor = order === 'asc' ? 1 : -1
   const smartRank = (article: Article): number => {
@@ -82,6 +89,11 @@ function sortFeedArticles(
     if (sort === 'smart') {
       const rank = smartRank(a) - smartRank(b)
       if (rank !== 0) return rank
+    }
+    if (sort === 'interest') {
+      const left = scores?.[a.id]?.score ?? 0
+      const right = scores?.[b.id]?.score ?? 0
+      if (left !== right) return (right - left) * (order === 'asc' ? -1 : 1)
     }
     if (sort === 'created_at') return a.createdAt.localeCompare(b.createdAt) * factor
     const aTime = a.publicationDate ? Date.parse(a.publicationDate) : Number.NaN
@@ -97,6 +109,7 @@ function sortFeedArticles(
 
 export function DiscoverPage() {
   const { t, language } = useT()
+  const settings = useAppStore((state) => state.settings)
   const dataVersion = useAppStore((state) => state.dataVersion)
   const bumpData = useAppStore((state) => state.bumpData)
   const pendingDiscoverView = useAppStore((state) => state.pendingDiscoverView)
@@ -109,11 +122,17 @@ export function DiscoverPage() {
   const [activeSubscriptionId, setActiveSubscriptionId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [sort, setSort] = useState<'publication_date' | 'created_at' | 'smart'>('smart')
+  const [sort, setSort] = useState<FeedSort>('smart')
   const [order, setOrder] = useState<'asc' | 'desc'>('desc')
   const [view, setView] = useState<FeedView>('list')
   const [articles, setArticles] = useState<Article[]>([])
   const [snippets, setSnippets] = useState<Record<string, string>>({})
+  const [interestScores, setInterestScores] = useState<Record<string, { score: number }>>({})
+  const [categoryFilters, setCategoryFilters] = useState<string[]>([])
+  const [categoryCounts, setCategoryCounts] = useState<
+    Array<{ categoryId: string; name: string; color: string | null; count: number }>
+  >([])
+  const [matchArticleId, setMatchArticleId] = useState<string | null>(null)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -129,6 +148,11 @@ export function DiscoverPage() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; article: Article } | null>(null)
   const [subscriptionMenu, setSubscriptionMenu] = useState<{ x: number; y: number; subscription: Subscription } | null>(null)
   const readKeepRef = useRef<Map<string, Article>>(new Map())
+  const translationTarget = resolveArticleTextLanguage(settings?.appearance.articleTextLanguage, language)
+  const aiConfigured = Boolean(settings?.ai.apiKeySet && settings.ai.model)
+  const translationStarted = useArticleTextStore((state) =>
+    translationTarget === 'original' ? 0 : state.started[translationTarget] ?? 0
+  )
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 320)
@@ -174,9 +198,23 @@ export function DiscoverPage() {
     void loadSubscriptions()
   }, [loadSubscriptions, dataVersion])
 
+  useEffect(() => {
+    let cancelled = false
+    window.api.articles
+      .categoryCounts('discover', activeSubscriptionId)
+      .then((counts) => {
+        if (!cancelled) setCategoryCounts(counts)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [dataVersion, activeSubscriptionId])
+
   const buildQuery = (offset: number): Parameters<typeof window.api.articles.list>[0] => ({
     scope: 'discover',
     subscriptionId: activeSubscriptionId ?? undefined,
+    categoryIds: categoryFilters.length ? categoryFilters : undefined,
     unreadOnly: filter === 'unread',
     starredOnly: filter === 'starred',
     search: debouncedSearch || undefined,
@@ -192,15 +230,18 @@ export function DiscoverPage() {
       const query = buildQuery(0)
       let next: Article[]
       let nextTotal: number
+      let nextScores: Record<string, { score: number }> = {}
       if (debouncedSearch) {
         const result = await window.api.articles.search(query)
         next = result.items.map((item) => item.article)
         setSnippets(Object.fromEntries(result.items.map((item: SearchResponseItem) => [item.article.id, item.snippet])))
+        nextScores = result.interestScores ?? {}
         nextTotal = result.total
       } else {
         const result = await window.api.articles.list(query)
         next = result.items
         setSnippets({})
+        nextScores = result.interestScores ?? {}
         nextTotal = result.total
       }
       if (filter === 'unread' && readKeepRef.current.size) {
@@ -220,10 +261,11 @@ export function DiscoverPage() {
           return haystack.includes(term)
         })
         const keepIds = new Set(keep.map((article) => article.id))
-        next = sortFeedArticles([...next.filter((article) => !keepIds.has(article.id)), ...keep], sort, order)
+        next = sortFeedArticles([...next.filter((article) => !keepIds.has(article.id)), ...keep], sort, order, nextScores)
         nextTotal += keep.length
       }
       setArticles(next)
+      setInterestScores(nextScores)
       setTotal(nextTotal)
     } catch (error) {
       toast.error(errorMessage(error))
@@ -231,7 +273,7 @@ export function DiscoverPage() {
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSubscriptionId, filter, debouncedSearch, sort, order])
+  }, [activeSubscriptionId, filter, debouncedSearch, sort, order, categoryFilters.join(',')])
 
   useEffect(() => {
     void loadArticles()
@@ -291,6 +333,17 @@ export function DiscoverPage() {
     setActiveSubscriptionId(id)
     setFilter('all')
     setSelectedId(null)
+  }
+
+  const toggleCategoryFilter = (categoryId: string): void => {
+    const next = categoryFilters.includes(categoryId)
+      ? categoryFilters.filter((id) => id !== categoryId)
+      : [...categoryFilters, categoryId]
+    setCategoryFilters(next)
+    if (next.length > categoryFilters.length && sort !== 'interest') {
+      setSort('interest')
+      setOrder('desc')
+    }
   }
 
   const syncOne = async (subscription: Subscription): Promise<void> => {
@@ -537,6 +590,12 @@ export function DiscoverPage() {
         label: article.starred ? t('article.unstar') : t('article.star'),
         icon: <Star size={12} />,
         onSelect: () => void toggleStar(article)
+      },
+      {
+        key: 'match',
+        label: t('interest.evaluateAction'),
+        icon: <Gauge size={12} />,
+        onSelect: () => setMatchArticleId(article.id)
       },
       { separator: true },
       {
@@ -825,7 +884,7 @@ export function DiscoverPage() {
                   value={`${sort}:${order}`}
                   onValueChange={(value) => {
                     const [nextSort, nextOrder] = value.split(':') as [
-                      'publication_date' | 'created_at' | 'smart',
+                      FeedSort,
                       'asc' | 'desc'
                     ]
                     setSort(nextSort)
@@ -836,6 +895,7 @@ export function DiscoverPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="interest:desc">{t('discover.sortInterest')}</SelectItem>
                     <SelectItem value="smart:desc">{t('discover.sortSmart')}</SelectItem>
                     <SelectItem value="publication_date:desc">{t('discover.sortNewest')}</SelectItem>
                     <SelectItem value="publication_date:asc">{t('discover.sortOldest')}</SelectItem>
@@ -908,12 +968,73 @@ export function DiscoverPage() {
                 className="h-7 pl-7 text-[11.5px]"
               />
             </div>
+            {translationTarget !== 'original' && aiConfigured && translationStarted > 0 ? (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => translateMoreArticles(translationTarget)}
+                title={t('article.translateMoreHint')}
+              >
+                <Languages size={11} /> {t('article.translateMore')}
+              </Button>
+            ) : null}
             {activeSubscription ? (
               <Button variant="ghost" size="xs" onClick={() => setEditSubscription(activeSubscription)}>
                 <Settings2 size={11} /> {t('discover.subscriptionSettings')}
               </Button>
             ) : null}
           </div>
+
+          {categoryCounts.length ? (
+            <div className="flex flex-wrap items-center gap-1 border-b border-border/60 bg-muted/10 px-3 py-1.5">
+              <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t('discover.filterByCategory')}
+              </span>
+              {categoryCounts.map((category) => {
+                const active = categoryFilters.includes(category.categoryId)
+                return (
+                  <button
+                    key={category.categoryId}
+                    type="button"
+                    onClick={() => toggleCategoryFilter(category.categoryId)}
+                    className={cn(
+                      'inline-flex max-w-[220px] items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] transition',
+                      active
+                        ? 'border-primary/45 bg-primary/10 font-medium text-primary'
+                        : 'border-border/70 bg-card text-foreground/70 hover:border-primary/30 hover:text-foreground'
+                    )}
+                  >
+                    <Dot color={category.color} className="h-1.5 w-1.5" />
+                    <span className="truncate">{category.name}</span>
+                    <span className="tabular-nums text-muted-foreground">{category.count}</span>
+                  </button>
+                )
+              })}
+              {categoryFilters.length ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilters([])}
+                    className="rounded-full px-2 py-0.5 text-[10.5px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  >
+                    {t('common.clear')}
+                  </button>
+                  {sort !== 'interest' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSort('interest')
+                        setOrder('desc')
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/5 px-2 py-0.5 text-[10.5px] text-primary transition hover:bg-primary/10"
+                    >
+                      <Sparkles size={9} /> {t('discover.sortInterestShort')}
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
 
           <div data-testid="discover-list" className="min-h-0 flex-1 overflow-y-auto">
             {loading ? (
@@ -928,6 +1049,7 @@ export function DiscoverPage() {
                     article={article}
                     active={article.id === selectedId}
                     view={view}
+                    interestScore={interestScores[article.id]?.score}
                     onSelect={() => setSelectedId(article.id)}
                     onToggleStar={() => void toggleStar(article)}
                     onToggleRead={() => void toggleRead(article)}
@@ -988,6 +1110,14 @@ export function DiscoverPage() {
         y={subscriptionMenu?.y ?? 0}
         items={subscriptionMenu ? subscriptionContextItems(subscriptionMenu.subscription) : []}
         onClose={() => setSubscriptionMenu(null)}
+      />
+
+      <MatchEvaluationDialog
+        open={Boolean(matchArticleId)}
+        onOpenChange={(open) => {
+          if (!open) setMatchArticleId(null)
+        }}
+        articleId={matchArticleId}
       />
 
       <AddJournalDialog

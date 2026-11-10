@@ -989,7 +989,28 @@ function AppearanceSection({ settings }: { settings: AppSettings }) {
             </SelectContent>
           </Select>
         </Field>
+        <Field label={t('settings.articleTextLanguage')}>
+          <Select
+            value={settings.appearance.articleTextLanguage ?? 'system'}
+            onValueChange={(value) =>
+              void updateSettings({
+                appearance: { articleTextLanguage: value as AppSettings['appearance']['articleTextLanguage'] }
+              })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="system">{t('settings.articleTextSystem')}</SelectItem>
+              <SelectItem value="zh">{t('common.chinese')}</SelectItem>
+              <SelectItem value="en">{t('common.english')}</SelectItem>
+              <SelectItem value="original">{t('settings.articleTextOriginal')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
       </div>
+      <p className="mt-3 text-[10.5px] leading-relaxed text-muted-foreground">{t('settings.articleTextHint')}</p>
     </SectionCard>
   )
 }

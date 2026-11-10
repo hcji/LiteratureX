@@ -1,8 +1,9 @@
 export type ID = string
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type Language = 'zh' | 'en'
-export type ArticleSort = 'publication_date' | 'created_at' | 'title' | 'journal' | 'author' | 'smart'
+export type ArticleSort = 'publication_date' | 'created_at' | 'title' | 'journal' | 'author' | 'smart' | 'interest'
 export type SortOrder = 'asc' | 'desc'
+export type ArticleTextLanguage = 'system' | 'zh' | 'en' | 'original'
 export type ReadStatus = 'unread' | 'reading' | 'read'
 export type ArticleSource = 'rss' | 'pdf' | 'manual' | 'doi' | 'import'
 export type ClassificationStatus = 'auto' | 'provisional' | 'needs_review' | 'confirmed' | 'rejected'
@@ -213,6 +214,7 @@ export interface ArticleQuery {
   subscriptionId?: string
   journalId?: string
   categoryId?: string
+  categoryIds?: string[]
   includeDescendants?: boolean
   unreadOnly?: boolean
   starredOnly?: boolean
@@ -236,6 +238,8 @@ export interface ArticleQuery {
 export interface ArticleListResult {
   items: Article[]
   total: number
+  /** Interest-profile match scores for the returned articles, keyed by article id. */
+  interestScores?: Record<string, InterestScore>
 }
 
 export interface ArticlePatch {
@@ -334,6 +338,8 @@ export interface StorageSettings {
 export interface AppearanceSettings {
   theme: ThemeMode
   language: Language
+  /** Language used for article titles and abstracts (machine translation is cached). */
+  articleTextLanguage: ArticleTextLanguage
 }
 
 export interface AssistantSettings {
@@ -507,6 +513,116 @@ export interface SearchResponse {
   items: SearchResponseItem[]
   total: number
   tookMs: number
+  /** Interest-profile match scores for the returned articles, keyed by article id. */
+  interestScores?: Record<string, InterestScore>
+}
+
+export type InterestProvider = 'local' | 'ai'
+
+export interface InterestTheme {
+  id: string
+  label: string
+  /** Normalized radar weight in 0–1. */
+  weight: number
+  articleCount: number
+  keywords: string[]
+  categoryIds: string[]
+  color?: string | null
+}
+
+export interface InterestProfileCategory {
+  categoryId: string
+  name: string
+  color?: string | null
+  count: number
+  /** Normalized affinity in 0–1. */
+  weight: number
+}
+
+export interface InterestProfile {
+  status: 'empty' | 'ready'
+  language: Language
+  articleCount: number
+  analyzedArticles: number
+  updatedAt: string | null
+  summary: string
+  highlights: string[]
+  themes: InterestTheme[]
+  keywords: Array<{ term: string; weight: number }>
+  categories: InterestProfileCategory[]
+  journals: Array<{ name: string; count: number }>
+  provider: InterestProvider
+  model?: string | null
+  /** Non-fatal provider error, e.g. AI enrichment failed and local rules were kept. */
+  warning?: string | null
+}
+
+export interface InterestScore {
+  articleId: string
+  /** Overall affinity in 0–1. */
+  score: number
+  categoryScore: number
+  keywordScore: number
+  matchedCategories: string[]
+  matchedKeywords: string[]
+}
+
+export interface InterestMatchArticle {
+  articleId: string
+  title: string
+  journalTitle?: string | null
+  year?: number | null
+  publicationDate?: string | null
+  score: number
+  sharedKeywords: string[]
+  sharedCategories: string[]
+}
+
+export interface InterestMatchedCategory {
+  categoryId: string
+  name: string
+  color?: string | null
+  confidence: number
+  weight: number
+}
+
+export interface InterestMatchReport {
+  articleId: string
+  title: string
+  language: Language
+  overall: number
+  band: 'high' | 'medium' | 'low'
+  profileScore: number
+  libraryScore: number
+  summary: string
+  highlights: string[]
+  matchedCategories: InterestMatchedCategory[]
+  sharedKeywords: string[]
+  themes: string[]
+  similarArticles: InterestMatchArticle[]
+  comparedWith: number
+  provider: InterestProvider
+  model?: string | null
+  warning?: string | null
+  generatedAt: string
+}
+
+export interface ArticleTranslation {
+  articleId: string
+  language: Language
+  title: string
+  abstract?: string | null
+  /** 'title' when only the title was translated, 'all' when the abstract was included. */
+  fields: 'title' | 'all'
+  provider: 'ai'
+  model?: string | null
+  createdAt: string
+}
+
+export interface ArticleTranslationResult {
+  translations: ArticleTranslation[]
+  requested: number
+  provider: string
 }
 
 export interface DashboardStats {

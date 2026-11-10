@@ -2,10 +2,17 @@ import { BookPlus, CheckCircle2, Circle, FileText, Star } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import type { Article, SearchResponseItem } from '@shared/types'
 import { useT } from '../i18n'
+import { useArticleDisplay } from '../lib/articleText'
 import { cn, formatAuthors, formatDate, truncateText } from '../lib/utils'
 import { Badge } from './ui/badge'
 import { Checkbox } from './ui/primitives'
-import { ArticleMetaLine, CategoryChips, PdfBadge } from './ArticleBits'
+import {
+  ArticleMetaLine,
+  CategoryChips,
+  InterestScoreBadge,
+  PdfBadge,
+  TranslationBadge
+} from './ArticleBits'
 
 function HighlightedSnippet({ text }: { text: string }) {
   const parts = text.split(/(<mark>[\s\S]*?<\/mark>)/g)
@@ -30,6 +37,7 @@ export function ArticleFeedItem({
   article,
   active,
   view,
+  interestScore,
   onSelect,
   onToggleStar,
   onToggleRead,
@@ -39,6 +47,7 @@ export function ArticleFeedItem({
   article: Article
   active: boolean
   view: FeedView
+  interestScore?: number | null
   onSelect: () => void
   onToggleStar: () => void
   onToggleRead: () => void
@@ -46,6 +55,7 @@ export function ArticleFeedItem({
   onContextMenu?: (event: MouseEvent) => void
 }) {
   const { t, language } = useT()
+  const display = useArticleDisplay(article, { includeAbstract: view !== 'compact' })
   const unread = article.readStatus === 'unread'
   const hasPdf = article.pdfFiles.length > 0
 
@@ -63,12 +73,14 @@ export function ArticleFeedItem({
         <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', unread ? 'bg-primary' : 'bg-transparent')} />
         <div className="min-w-0 flex-1">
           <div className={cn('truncate text-[13px]', unread ? 'font-medium text-foreground' : 'text-foreground/75')}>
-            {article.title}
+            {display.title}
           </div>
         </div>
+        {view === 'compact' ? <TranslationBadge translated={display.translatedTitle} /> : null}
         <span className="hidden max-w-[120px] truncate text-[11px] text-muted-foreground md:inline">
           {article.journalTitle}
         </span>
+        <InterestScoreBadge score={interestScore} />
         <span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">{article.year ?? ''}</span>
         {hasPdf ? <FileText size={11} className="text-muted-foreground/60" /> : <span className="w-[11px]" />}
         {article.inLibrary ? (
@@ -131,7 +143,7 @@ export function ArticleFeedItem({
                 unread ? 'font-semibold text-foreground' : 'font-medium text-foreground/75'
               )}
             >
-              {article.title}
+              {display.title}
             </h3>
             <button
               type="button"
@@ -148,9 +160,9 @@ export function ArticleFeedItem({
             </button>
           </div>
           <ArticleMetaLine article={article} className="mt-1" />
-          {article.abstract ? (
+          {display.abstract ? (
             <p className={cn('mt-1.5 text-[12px] leading-relaxed text-muted-foreground', view === 'detailed' ? 'line-clamp-4' : 'line-clamp-2')}>
-              {article.abstract}
+              {display.abstract}
             </p>
           ) : null}
           {view === 'detailed' && article.aiSummary ? (
@@ -160,6 +172,8 @@ export function ArticleFeedItem({
             </div>
           ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <InterestScoreBadge score={interestScore} />
+            <TranslationBadge translated={display.translatedTitle} />
             <CategoryChips categories={article.categories} max={2} />
             {article.categories.length === 0 ? (
               <Badge variant="outline">{t('library.unclassified')}</Badge>
@@ -216,6 +230,7 @@ export function ArticleTableRow({
 }) {
   const article = item.article
   const snippet = 'snippet' in item ? item.snippet : undefined
+  const display = useArticleDisplay(article)
   const unread = article.readStatus === 'unread'
   const hasPdf = article.pdfFiles.length > 0
   return (
@@ -239,7 +254,10 @@ export function ArticleTableRow({
       </div>
       <span className={cn('h-1.5 w-1.5 rounded-full', unread ? 'bg-primary' : 'bg-transparent')} />
       <div className="min-w-0">
-        <div className={cn('truncate text-[13px]', unread ? 'font-medium' : 'text-foreground/75')}>{article.title}</div>
+        <div className={cn('flex items-center gap-1 truncate text-[13px]', unread ? 'font-medium' : 'text-foreground/75')}>
+          <span className="truncate">{display.title}</span>
+          {display.translatedTitle ? <TranslationBadge translated /> : null}
+        </div>
         {snippet ? (
           <div className="mt-0.5 flex items-center text-[11px] text-muted-foreground">
             <HighlightedSnippet text={snippet} />

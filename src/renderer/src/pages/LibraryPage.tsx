@@ -16,6 +16,7 @@ import {
   Filter,
   FolderOpen,
   FolderTree,
+  Gauge,
   Info,
   Plus,
   RotateCcw,
@@ -41,6 +42,7 @@ import { ArticleTableRow, ARTICLE_TABLE_GRID } from '../components/ArticleList'
 import { ArticleDetailPanel } from '../components/ArticleDetailPanel'
 import { PdfReaderPane } from '../components/PdfReaderPane'
 import { CategoryPicker } from '../components/ArticleBits'
+import { MatchEvaluationDialog } from '../components/MatchEvaluationDialog'
 import { Checkbox } from '../components/ui/primitives'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover'
 import { ContextMenu, type ContextMenuItem } from '../components/ui/context-menu'
@@ -124,6 +126,7 @@ export function LibraryPage() {
   const [dedupeOpen, setDedupeOpen] = useState(false)
   const [deduping, setDeduping] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; article: Article } | null>(null)
+  const [matchArticleId, setMatchArticleId] = useState<string | null>(null)
   const [categoryTarget, setCategoryTarget] = useState<Article | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Article | null>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -553,6 +556,12 @@ export function LibraryPage() {
         onSelect: () => setCategoryTarget(article)
       },
       { key: 'classify', label: t('library.classifyNow'), icon: <Sparkles size={12} />, onSelect: () => void classifyOne(article) },
+      {
+        key: 'match',
+        label: t('interest.evaluateAction'),
+        icon: <Gauge size={12} />,
+        onSelect: () => setMatchArticleId(article.id)
+      },
       { separator: true },
       {
         key: 'download',
@@ -1412,6 +1421,14 @@ export function LibraryPage() {
         y={contextMenu?.y ?? 0}
         items={contextMenu ? contextItems(contextMenu.article) : []}
         onClose={() => setContextMenu(null)}
+      />
+
+      <MatchEvaluationDialog
+        open={Boolean(matchArticleId)}
+        onOpenChange={(open) => {
+          if (!open) setMatchArticleId(null)
+        }}
+        articleId={matchArticleId}
       />
 
       <AlertDialog open={dedupeOpen} onOpenChange={setDedupeOpen}>

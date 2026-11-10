@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Check, Copy, ExternalLink, FileText, Plus, Star, X } from 'lucide-react'
+import { Check, Copy, ExternalLink, FileText, Languages, Plus, Sparkles, Star, X } from 'lucide-react'
 import type { Article, ArticleCategory, Category } from '@shared/types'
 import { useT } from '../i18n'
+import { useArticleDisplay } from '../lib/articleText'
 import { cn, errorMessage, formatAuthors, formatDate, percent } from '../lib/utils'
 import { Badge, Dot } from './ui/badge'
 import { IconButton } from './ui/tooltip'
@@ -172,6 +173,69 @@ export function PdfBadge({ available }: { available: boolean }) {
       <FileText size={9} />
       {t('common.pdf')}
     </Badge>
+  )
+}
+
+export function TranslationBadge({ translated, className }: { translated: boolean; className?: string }) {
+  const { t } = useT()
+  if (!translated) return null
+  return (
+    <span
+      title={t('article.machineTranslatedHint')}
+      className={cn(
+        'inline-flex items-center gap-0.5 rounded-full bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300',
+        className
+      )}
+    >
+      <Languages size={9} />
+      {t('article.translated')}
+    </span>
+  )
+}
+
+export function LocalizedArticleTitle({
+  article,
+  className,
+  showBadge = false
+}: {
+  article: Article
+  className?: string
+  showBadge?: boolean
+}) {
+  const display = useArticleDisplay(article)
+  return (
+    <span className={className}>
+      {display.title}
+      {showBadge ? (
+        <>
+          {' '}
+          <TranslationBadge translated={display.translatedTitle} />
+        </>
+      ) : null}
+    </span>
+  )
+}
+
+export function InterestScoreBadge({ score, className }: { score?: number | null; className?: string }) {
+  const { t } = useT()
+  if (score == null) return null
+  const percentValue = Math.round(score * 100)
+  return (
+    <span
+      title={t('interest.matchScoreHint')}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
+        percentValue >= 70
+          ? 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300'
+          : percentValue >= 45
+            ? 'bg-amber-500/12 text-amber-700 dark:text-amber-300'
+            : 'bg-muted text-muted-foreground',
+        className
+      )}
+    >
+      <Sparkles size={9} />
+      {percentValue}%
+    </span>
   )
 }
 

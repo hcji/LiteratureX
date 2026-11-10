@@ -8,6 +8,8 @@ import type {
   ArticleListResult,
   ArticlePatch,
   ArticleQuery,
+  ArticleTranslation,
+  ArticleTranslationResult,
   AssistantMessage,
   AssistantRequest,
   AssistantResponse,
@@ -27,9 +29,12 @@ import type {
   DedupeResult,
   DiscoverFeedsResult,
   FeedCandidate,
+  InterestMatchReport,
+  InterestProfile,
   IoResult,
   JobInfo,
   JournalCandidate,
+  Language,
   PdfImportResult,
   PluginStatus,
   SearchResponse,
@@ -77,11 +82,27 @@ const api = {
   dashboard: {
     get: (): Promise<DashboardStats> => invoke('dashboard:get')
   },
+  interest: {
+    get: (): Promise<InterestProfile> => invoke('interest:get'),
+    rebuild: (options: { useAi?: boolean } = {}): Promise<InterestProfile> =>
+      invoke('interest:rebuild', options),
+    evaluate: (articleId: string, deep = false): Promise<InterestMatchReport> =>
+      invoke('interest:evaluate', articleId, deep)
+  },
   articles: {
     list: (query: ArticleQuery): Promise<ArticleListResult> => invoke('articles:list', query),
     get: (id: string): Promise<Article | null> => invoke('articles:get', id),
     openInSystem: (id: string): Promise<{ kind: 'pdf' | 'url' }> => invoke('articles:openInSystem', id),
     search: (query: ArticleQuery): Promise<SearchResponse> => invoke('articles:search', query),
+    categoryCounts: (
+      scope: 'library' | 'discover' = 'discover',
+      subscriptionId?: string | null
+    ): Promise<Array<{ categoryId: string; name: string; color: string | null; count: number }>> =>
+      invoke('articles:categoryCounts', scope, subscriptionId),
+    translations: (ids: string[], language: Language): Promise<ArticleTranslation[]> =>
+      invoke('articles:translations', ids, language),
+    translate: (ids: string[], language: Language, includeAbstract = true): Promise<ArticleTranslationResult> =>
+      invoke('articles:translate', ids, language, includeAbstract),
     create: (input: CreateArticleInput): Promise<Article> => invoke('articles:create', input),
     update: (id: string, patch: ArticlePatch): Promise<Article | null> => invoke('articles:update', id, patch),
     setRead: (id: string, status: Article['readStatus']): Promise<void> => invoke('articles:setRead', id, status),

@@ -8,6 +8,8 @@ import type {
   ArticleListResult,
   ArticlePatch,
   ArticleQuery,
+  ArticleTranslation,
+  ArticleTranslationResult,
   AssistantMessage,
   AssistantRequest,
   AssistantResponse,
@@ -25,9 +27,12 @@ import type {
   DedupeResult,
   DiscoverFeedsResult,
   FeedCandidate,
+  InterestMatchReport,
+  InterestProfile,
   IoResult,
   JobInfo,
   JournalCandidate,
+  Language,
   OperationProgress,
   PdfImportResult,
   SearchResponse,
@@ -55,6 +60,7 @@ import { BackupService } from './services/backup'
 import { DiscoveryService } from './services/discovery'
 import { HttpService } from './services/http'
 import { ImportExportService } from './services/importExport'
+import { InterestService } from './services/interest'
 import { MetadataService } from './services/metadata'
 import { PdfService } from './services/pdf'
 import { PluginService } from './services/pluginService'
@@ -67,6 +73,7 @@ function envPort(name: string): number | undefined {
 }
 import { RssSyncService } from './services/rss'
 import { SettingsService, type SecretBox } from './services/settings'
+import { TranslationService } from './services/translation'
 
 export interface AppContextOptions {
   dataDir: string
@@ -93,6 +100,8 @@ export class AppContext {
   readonly metadata: MetadataService
   readonly discovery: DiscoveryService
   readonly classifier: ClassifierService
+  readonly interest: InterestService
+  readonly translation: TranslationService
   readonly queue: ClassificationQueue
   readonly rss: RssSyncService
   readonly pdf: PdfService
@@ -144,6 +153,8 @@ export class AppContext {
     this.classifier = new ClassifierService(this.articles, this.categories, this.settings, (type, payload) =>
       emit({ type, payload })
     )
+    this.interest = new InterestService(this.db, this.articles, this.settings)
+    this.translation = new TranslationService(this.articles, this.settings)
     this.queue = new ClassificationQueue(this.classifier, this.jobs, (type, payload) => emit({ type, payload }))
     const enqueueClassification = (ids: string[]): void => {
       if (this.activeCategoryCount() > 0) this.queue.enqueue(ids)
@@ -231,9 +242,54 @@ export class AppContext {
   }
 
   // ---------- Articles ----------
+  private categoryFilterIds(query: ArticleQuery): string[] | undefined {
+    const requested = query.categoryIds?.length
+      ? query.categoryIds
+      : query.categoryId
+        ? [query.categoryId]
+        : []
+    if (!requested.length) return undefined
+    const ids = new Set<string>()
+    for (const id of requested) {
+      for (const descendant of this.categories.descendantIds(id)) ids.add(descendant)
+    }
+    return [...ids]
+  }
+
+  private compareByDateDesc(a: Article, b: Article): number {
+    const left = a.publicationDate ? Date.parse(a.publicationDate) : 0
+    const right = b.publicationDate ? Date.parse(b.publicationDate) : 0
+    if (left === right) return b.createdAt.localeCompare(a.createdAt)
+    return right - left
+  }
+
   listArticles(query: ArticleQuery): ArticleListResult {
-    const categoryIds = query.categoryId ? this.categories.descendantIds(query.categoryId) : undefined
-    return this.articles.list(query, categoryIds)
+    const categoryIds = this.categoryFilterIds(query)
+    if (query.sort === 'interest') {
+      const base = this.articles.list(
+        { ...query, sort: 'publication_date', order: 'desc', limit: 100000, offset: 0 },
+        categoryIds
+      )
+      const scoreMap = this.interest.scoreArticles(base.items)
+      const scored = base.items.map((article) => ({
+        article,
+        score: scoreMap[article.id]
+      }))
+      scored.sort((left, right) => right.score.score - left.score.score || this.compareByDateDesc(left.article, right.article))
+      const offset = Math.max(0, query.offset ?? 0)
+      const limit = Math.min(Math.max(query.limit ?? 50, 1), 100000)
+      const items = scored.slice(offset, offset + limit)
+      return {
+        items: items.map((item) => item.article),
+        total: base.total,
+        interestScores: Object.fromEntries(items.map((item) => [item.article.id, item.score]))
+      }
+    }
+    const result = this.articles.list(query, categoryIds)
+    if (query.scope === 'discover' || (query.categoryIds?.length ?? 0) > 0) {
+      result.interestScores = this.interest.scoreArticles(result.items)
+    }
+    return result
   }
 
   getArticle(id: string): Article | null {
@@ -295,13 +351,47 @@ export class AppContext {
   }
 
   search(query: ArticleQuery): SearchResponse {
-    const categoryIds = query.categoryId ? this.categories.descendantIds(query.categoryId) : undefined
+    const categoryIds = this.categoryFilterIds(query)
     const result = this.articles.search(query, categoryIds)
+    if (query.scope === 'discover' || query.sort === 'interest' || (query.categoryIds?.length ?? 0) > 0) {
+      const scores = this.interest.scoreArticles(result.items.map((item) => item.article))
+      let items = result.items.map((item) => ({ ...item, score: scores[item.article.id]?.score ?? item.score }))
+      if (query.sort === 'interest') {
+        items = [...items].sort((a, b) => b.score - a.score)
+      }
+      return { items, total: result.total, tookMs: result.tookMs, interestScores: scores }
+    }
     return { items: result.items, total: result.total, tookMs: result.tookMs }
   }
 
   dashboard(): DashboardStats {
     return this.articles.stats()
+  }
+
+  // ---------- Interest profile ----------
+  interestProfile(): InterestProfile {
+    return this.interest.getProfile()
+  }
+
+  async rebuildInterestProfile(options: { useAi?: boolean } = {}): Promise<InterestProfile> {
+    return this.interest.refresh({ useAi: options.useAi === true })
+  }
+
+  async evaluateArticleMatch(articleId: string, deep = false): Promise<InterestMatchReport> {
+    return this.interest.evaluate(articleId, deep)
+  }
+
+  categoryCounts(scope: 'library' | 'discover' = 'discover', subscriptionId?: string | null) {
+    return this.articles.categoryCounts(scope, subscriptionId)
+  }
+
+  // ---------- Article text translation ----------
+  cachedTranslations(ids: string[], language: Language): ArticleTranslation[] {
+    return this.translation.cached(ids, language)
+  }
+
+  async translateArticles(ids: string[], language: Language, includeAbstract = true): Promise<ArticleTranslationResult> {
+    return this.translation.translate(ids, language, includeAbstract)
   }
 
   // ---------- Categories ----------

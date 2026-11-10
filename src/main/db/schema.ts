@@ -332,5 +332,36 @@ export const migrations: Migration[] = [
 ALTER TABLE category_keywords ADD COLUMN keyword_en TEXT;
 ALTER TABLE category_keywords ADD COLUMN keyword_zh TEXT;
 `
+  },
+  {
+    version: 3,
+    name: 'interest_profile_and_translations',
+    sql: `
+CREATE TABLE IF NOT EXISTS interest_profiles (
+  id TEXT PRIMARY KEY,
+  language TEXT NOT NULL,
+  signature TEXT NOT NULL,
+  profile_json TEXT NOT NULL,
+  vector_json TEXT,
+  article_count INTEGER NOT NULL DEFAULT 0,
+  provider TEXT NOT NULL DEFAULT 'local',
+  model TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS article_translations (
+  article_id TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+  language TEXT NOT NULL,
+  title TEXT NOT NULL,
+  abstract TEXT,
+  fields TEXT NOT NULL DEFAULT 'title',
+  provider TEXT NOT NULL,
+  model TEXT,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (article_id, language)
+);
+CREATE INDEX IF NOT EXISTS idx_article_translations_language ON article_translations(language);
+`
   }
 ]

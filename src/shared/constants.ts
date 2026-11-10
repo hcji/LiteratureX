@@ -30,7 +30,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   appearance: {
     theme: 'system',
-    language: 'zh'
+    language: 'zh',
+    articleTextLanguage: 'system'
   },
   assistant: {
     sendFullText: false,

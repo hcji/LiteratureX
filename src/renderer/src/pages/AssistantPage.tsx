@@ -31,6 +31,7 @@ import { Spinner, Progress } from '../components/ui/feedback'
 import { EmptyState } from '../components/ui/layout-bits'
 import { Switch, Checkbox } from '../components/ui/primitives'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { LocalizedArticleTitle } from '../components/ArticleBits'
 import {
   Dialog,
   DialogBody,
@@ -521,9 +522,10 @@ export function AssistantPage() {
                         onClick={() => openArticle(article.id)}
                         className="min-w-0 flex-1 text-left"
                       >
-                        <div className="line-clamp-2 text-[11px] font-medium leading-snug text-foreground hover:text-primary">
-                          {article.title}
-                        </div>
+                        <LocalizedArticleTitle
+                          article={article}
+                          className="line-clamp-2 text-[11px] font-medium leading-snug text-foreground hover:text-primary"
+                        />
                         <div className="mt-0.5 truncate text-[9.5px] text-muted-foreground">
                           {[article.journalTitle, article.year].filter(Boolean).join(' · ')}
                         </div>
@@ -618,7 +620,7 @@ export function AssistantPage() {
                       {already ? <Check size={12} className="text-primary" /> : <Checkbox checked={selected} className="h-3.5 w-3.5" />}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="line-clamp-1 text-[11.5px] font-medium">{article.title}</div>
+                      <LocalizedArticleTitle article={article} className="line-clamp-1 text-[11.5px] font-medium" />
                       <div className="mt-0.5 flex items-center gap-1.5 text-[9.5px] text-muted-foreground">
                         <span className="max-w-[220px] truncate">{article.journalTitle ?? '—'}</span>
                         <span>·</span>

@@ -8,6 +8,8 @@ import {
   ExternalLink,
   FileText,
   FolderOpen,
+  Gauge,
+  Languages,
   Maximize2,
   Info,
   MessageSquare,
@@ -24,6 +26,7 @@ import {
 import type { Article, Category, ClassificationHistoryEntry } from '@shared/types'
 import { useT } from '../i18n'
 import { useAppStore } from '../store/appStore'
+import { retryArticleTranslation, useArticleDisplay } from '../lib/articleText'
 import { cn, errorMessage, formatAuthors, formatBytes, formatDate, formatDateTime, percent } from '../lib/utils'
 import { Badge, Dot } from './ui/badge'
 import { Button } from './ui/button'
@@ -32,8 +35,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
 import { EmptyState } from './ui/layout-bits'
 import { Spinner } from './ui/feedback'
 import { Textarea } from './ui/input'
-import { CategoryChips, CategoryPicker, ConfidenceBadge, DoiBadge, StatusBadge } from './ArticleBits'
+import {
+  CategoryChips,
+  CategoryPicker,
+  ConfidenceBadge,
+  DoiBadge,
+  StatusBadge,
+  TranslationBadge
+} from './ArticleBits'
 import { MetadataEditDialog } from './MetadataEditDialog'
+import { MatchEvaluationDialog } from './MatchEvaluationDialog'
 import { PdfViewer } from './PdfViewer'
 import {
   AlertDialog,
@@ -85,7 +96,13 @@ export function ArticleDetailPanel({
   const [confirmKind, setConfirmKind] = useState<ConfirmKind | null>(null)
   const [deletePdfFile, setDeletePdfFile] = useState(false)
   const [activePdfId, setActivePdfId] = useState<string | null>(null)
+  const [matchOpen, setMatchOpen] = useState(false)
+  const [showOriginal, setShowOriginal] = useState(false)
   const lastLoaded = useRef<string | null>(null)
+  const display = useArticleDisplay(article ?? { id: '', title: '', abstract: null }, {
+    detail: true,
+    includeAbstract: true
+  })
 
   const reload = useCallback(async () => {
     if (!articleId) {
@@ -118,6 +135,10 @@ export function ArticleDetailPanel({
   useEffect(() => {
     void reload()
   }, [reload, dataVersion])
+
+  useEffect(() => {
+    setShowOriginal(false)
+  }, [articleId])
 
   useEffect(() => {
     if (article?.readStatus === 'unread' && lastLoaded.current !== article.id) {
@@ -310,6 +331,10 @@ export function ArticleDetailPanel({
 
   const activePdf = article.pdfFiles.find((pdf) => pdf.id === activePdfId) ?? article.pdfFiles[0]
   const canDownloadPdf = !article.pdfFiles.length && (Boolean(article.doi) || /\.pdf($|\?)/i.test(article.url ?? ''))
+  const shownTitle = showOriginal ? article.title : display.title
+  const shownAbstract = showOriginal ? article.abstract : display.abstract
+  const hasTranslation = display.translatedTitle || display.translatedAbstract
+  const displayTarget = display.target === 'original' ? null : display.target
   const sourceLabel =
     article.source === 'rss'
       ? 'RSS'
@@ -344,9 +369,12 @@ export function ArticleDetailPanel({
                   <MoreHorizontal size={15} />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem onClick={() => setEditOpen(true)}>
                   <Pencil size={13} /> {t('library.editMetadata')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setMatchOpen(true)}>
+                  <Gauge size={13} /> {t('interest.evaluateAction')}
                 </DropdownMenuItem>
                 {article.doi ? (
                   <DropdownMenuItem onClick={() => void window.api.app.openExternal(`https://doi.org/${article.doi}`)}>
@@ -385,7 +413,41 @@ export function ArticleDetailPanel({
           </div>
         </div>
 
-        <h2 className="text-[15.5px] font-semibold leading-snug tracking-[-0.01em] text-foreground">{article.title}</h2>
+        <h2 className="text-[15.5px] font-semibold leading-snug tracking-[-0.01em] text-foreground">{shownTitle}</h2>
+        {display.needsTranslation ? (
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+            {hasTranslation ? (
+              <>
+                <TranslationBadge translated />
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 transition hover:bg-muted hover:text-foreground"
+                  onClick={() => setShowOriginal((value) => !value)}
+                >
+                  <Languages size={10} />
+                  {showOriginal ? t('article.showTranslation') : t('article.showOriginalText')}
+                </button>
+              </>
+            ) : display.aiAvailable ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-primary transition hover:bg-primary/10"
+                title={display.failure ?? undefined}
+                onClick={() => {
+                  if (displayTarget) retryArticleTranslation(article, displayTarget, true)
+                }}
+              >
+                {display.failure ? <RefreshCw size={9} /> : <Spinner size={9} />}
+                {display.failure ? t('common.retry') : t('article.translating')}
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-muted-foreground/75">
+                <Languages size={10} />
+                {t('article.translationNeedsAi')}
+              </span>
+            )}
+          </div>
+        ) : null}
         <div className="mt-1.5 space-y-1 text-[11.5px] text-muted-foreground">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             {article.journalTitle ? <span className="font-medium text-foreground/75">{article.journalTitle}</span> : null}
@@ -486,8 +548,8 @@ export function ArticleDetailPanel({
                 <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {t('common.abstract')}
                 </h3>
-                {article.abstract ? (
-                  <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-foreground/85">{article.abstract}</p>
+                {shownAbstract ? (
+                  <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-foreground/85">{shownAbstract}</p>
                 ) : (
                   <p className="text-[11.5px] italic text-muted-foreground">{t('article.abstractUnavailable')}</p>
                 )}
@@ -564,10 +626,15 @@ export function ArticleDetailPanel({
                     ? t('article.classifiedOn', { date: formatDate(article.lastClassifiedAt, language) })
                     : t('library.noClassification')}
                 </div>
-                <Button variant="outline" size="xs" onClick={() => void classify()} disabled={classifying}>
-                  {classifying ? <Spinner size={11} /> : <RefreshCw size={11} />}
-                  {t('article.retryClassification')}
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="xs" onClick={() => setMatchOpen(true)}>
+                    <Gauge size={11} /> {t('interest.evaluateShort')}
+                  </Button>
+                  <Button variant="outline" size="xs" onClick={() => void classify()} disabled={classifying}>
+                    {classifying ? <Spinner size={11} /> : <RefreshCw size={11} />}
+                    {t('article.retryClassification')}
+                  </Button>
+                </div>
               </div>
 
               {article.needsReview ? (
@@ -810,6 +877,8 @@ export function ArticleDetailPanel({
       </Tabs>
 
       <MetadataEditDialog article={article} open={editOpen} onOpenChange={setEditOpen} onSaved={() => void refresh()} />
+
+      <MatchEvaluationDialog open={matchOpen} onOpenChange={setMatchOpen} articleId={article.id} />
 
       <AlertDialog
         open={confirmKind !== null}

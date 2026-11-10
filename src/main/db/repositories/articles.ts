@@ -8,6 +8,7 @@ import type {
   ArticlePatch,
   ArticleQuery,
   ArticleSort,
+  ArticleTranslation,
   Author,
   ClassificationHistoryEntry,
   ClassificationOutput,
@@ -85,6 +86,24 @@ interface CategoryRow {
   name: string
   color: string | null
   parent_id: string | null
+}
+
+export interface InterestCorpusArticle {
+  id: string
+  title: string
+  abstract: string | null
+  keywords: string[]
+  year: number | null
+  journalTitle: string | null
+  publicationDate: string | null
+  updatedAt: string
+  categories: Array<{
+    categoryId: string
+    name: string
+    color: string | null
+    confidence: number
+    status: ArticleCategory['status']
+  }>
 }
 
 function nowIso(): string {
@@ -1094,6 +1113,209 @@ export class ArticleRepo {
     return this.hydrate(rows)
   }
 
+  interestCorpus(limit = 6000): InterestCorpusArticle[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, title, abstract, keywords, year, journal_title, publication_date, updated_at
+         FROM articles
+         WHERE in_library = 1 AND deleted_at IS NULL
+         ORDER BY created_at DESC LIMIT ?`
+      )
+      .all(Math.max(1, limit)) as Array<{
+      id: string
+      title: string
+      abstract: string | null
+      keywords: string | null
+      year: number | null
+      journal_title: string | null
+      publication_date: string | null
+      updated_at: string
+    }>
+    if (!rows.length) return []
+    const ids = rows.map((row) => row.id)
+    const placeholders = ids.map(() => '?').join(',')
+    const categoryRows = this.db
+      .prepare(
+        `SELECT ac.article_id, ac.category_id, ac.confidence, ac.status, c.name, c.color
+         FROM article_categories ac JOIN categories c ON c.id = ac.category_id
+         WHERE ac.article_id IN (${placeholders}) AND ac.status != 'rejected'
+         ORDER BY ac.confidence DESC`
+      )
+      .all(...ids) as Array<{
+      article_id: string
+      category_id: string
+      confidence: number
+      status: ArticleCategory['status']
+      name: string
+      color: string | null
+    }>
+    const byArticle = new Map<
+      string,
+      Array<{ categoryId: string; name: string; color: string | null; confidence: number; status: ArticleCategory['status'] }>
+    >()
+    for (const row of categoryRows) {
+      const list = byArticle.get(row.article_id) ?? []
+      list.push({
+        categoryId: row.category_id,
+        name: row.name,
+        color: row.color,
+        confidence: row.confidence,
+        status: row.status
+      })
+      byArticle.set(row.article_id, list)
+    }
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      abstract: row.abstract,
+      keywords: parseJson<string[]>(row.keywords, []),
+      year: row.year,
+      journalTitle: row.journal_title,
+      publicationDate: row.publication_date,
+      updatedAt: row.updated_at,
+      categories: byArticle.get(row.id) ?? []
+    }))
+  }
+
+  /** Cheap content signature: read/star changes do not invalidate the interest profile. */
+  interestSignature(): string {
+    const articles = this.db
+      .prepare(
+        `SELECT COUNT(*) AS c,
+                COALESCE(SUM(LENGTH(title) + LENGTH(COALESCE(abstract, ''))), 0) AS size,
+                COALESCE(MAX(last_classified_at), '') AS classified
+         FROM articles WHERE in_library = 1 AND deleted_at IS NULL`
+      )
+      .get() as { c: number; size: number; classified: string }
+    const assignments = this.db
+      .prepare(
+        `SELECT COUNT(*) AS c, COALESCE(MAX(ac.updated_at), '') AS updated
+         FROM article_categories ac JOIN articles a ON a.id = ac.article_id
+         WHERE a.in_library = 1 AND a.deleted_at IS NULL AND ac.status != 'rejected'`
+      )
+      .get() as { c: number; updated: string }
+    const taxonomy = this.db
+      .prepare('SELECT COUNT(*) AS c, COALESCE(MAX(updated_at), \'\') AS updated FROM categories')
+      .get() as { c: number; updated: string }
+    const keywords = this.db.prepare('SELECT COUNT(*) AS c FROM category_keywords').get() as { c: number }
+    return [
+      articles.c,
+      articles.size,
+      articles.classified,
+      assignments.c,
+      assignments.updated,
+      taxonomy.c,
+      taxonomy.updated,
+      keywords.c
+    ].join(':')
+  }
+
+  categoryCounts(
+    scope: 'library' | 'discover' = 'discover',
+    subscriptionId?: string | null
+  ): Array<{
+    categoryId: string
+    name: string
+    color: string | null
+    count: number
+  }> {
+    const where: string[] = [
+      scope === 'discover'
+        ? 'a.subscription_id IS NOT NULL AND a.deleted_at IS NULL'
+        : 'a.in_library = 1 AND a.deleted_at IS NULL',
+      "ac.status != 'rejected'"
+    ]
+    const params: string[] = []
+    if (scope === 'discover' && subscriptionId) {
+      where.push('a.subscription_id = ?')
+      params.push(subscriptionId)
+    }
+    return this.db
+      .prepare(
+        `SELECT c.id AS categoryId, c.name AS name, c.color AS color, COUNT(DISTINCT a.id) AS count
+         FROM article_categories ac
+         JOIN categories c ON c.id = ac.category_id
+         JOIN articles a ON a.id = ac.article_id
+         WHERE ${where.join(' AND ')}
+         GROUP BY c.id
+         ORDER BY count DESC, c.name ASC`
+      )
+      .all(...params) as Array<{ categoryId: string; name: string; color: string | null; count: number }>
+  }
+
+  translationSource(ids: string[]): Array<{ id: string; title: string; abstract: string | null }> {
+    if (!ids.length) return []
+    const placeholders = ids.map(() => '?').join(',')
+    return this.db
+      .prepare(`SELECT id, title, abstract FROM articles WHERE deleted_at IS NULL AND id IN (${placeholders})`)
+      .all(...ids) as Array<{ id: string; title: string; abstract: string | null }>
+  }
+
+  getTranslations(ids: string[], language: string): ArticleTranslation[] {
+    if (!ids.length) return []
+    const placeholders = ids.map(() => '?').join(',')
+    const rows = this.db
+      .prepare(
+        `SELECT article_id, language, title, abstract, fields, provider, model, created_at
+         FROM article_translations WHERE language = ? AND article_id IN (${placeholders})`
+      )
+      .all(language, ...ids) as Array<{
+      article_id: string
+      language: string
+      title: string
+      abstract: string | null
+      fields: string
+      provider: string
+      model: string | null
+      created_at: string
+    }>
+    return rows.map((row) => ({
+      articleId: row.article_id,
+      language: row.language as ArticleTranslation['language'],
+      title: row.title,
+      abstract: row.abstract,
+      fields: row.fields === 'all' ? 'all' : 'title',
+      provider: 'ai',
+      model: row.model,
+      createdAt: row.created_at
+    }))
+  }
+
+  saveTranslation(input: ArticleTranslation): ArticleTranslation {
+    const createdAt = input.createdAt || nowIso()
+    this.db
+      .prepare(
+        `INSERT INTO article_translations
+           (article_id, language, title, abstract, fields, provider, model, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(article_id, language) DO UPDATE SET
+           title = excluded.title,
+           abstract = CASE
+             WHEN article_translations.fields = 'all' AND excluded.fields = 'title'
+               THEN article_translations.abstract
+             ELSE excluded.abstract
+           END,
+           fields = CASE
+             WHEN article_translations.fields = 'all' AND excluded.fields = 'title' THEN 'all'
+             ELSE excluded.fields
+           END,
+           provider = excluded.provider,
+           model = excluded.model,
+           created_at = excluded.created_at`
+      )
+      .run(
+        input.articleId,
+        input.language,
+        input.title,
+        input.abstract ?? null,
+        input.fields,
+        input.provider,
+        input.model ?? null,
+        createdAt
+      )
+    return { ...input, createdAt }
+  }
+
   list(query: ArticleQuery = {}, categoryIds?: string[]): ArticleListResult {
     const scope = query.scope ?? 'library'
     const where: string[] = []
@@ -1145,8 +1367,13 @@ export class ArticleRepo {
       where.push(`a.id IN (${query.ids.map(() => '?').join(',')})`)
       params.push(...query.ids)
     }
-    if (query.categoryId) {
-      const ids = categoryIds ?? [query.categoryId]
+    const requestedCategoryIds = query.categoryIds?.length
+      ? query.categoryIds
+      : query.categoryId
+        ? [query.categoryId]
+        : []
+    if (requestedCategoryIds.length) {
+      const ids = categoryIds ?? requestedCategoryIds
       if (ids.length) {
         where.push(
           `EXISTS (SELECT 1 FROM article_categories acc WHERE acc.article_id = a.id AND acc.status != 'rejected' AND acc.category_id IN (${ids
@@ -1208,7 +1435,9 @@ export class ArticleRepo {
           ELSE 3
         END ASC,
         CASE WHEN a.publication_date IS NULL THEN 1 ELSE 0 END ASC,
-        a.publication_date ${order}`
+        a.publication_date ${order}`,
+      // Interest ranking is computed in AppContext because it needs the profile vector.
+      interest: `CASE WHEN a.publication_date IS NULL THEN 1 ELSE 0 END ASC, a.publication_date ${order}`
     }
     const limit = Math.min(Math.max(query.limit ?? 50, 1), 100000)
     const offset = Math.max(query.offset ?? 0, 0)
@@ -1261,8 +1490,13 @@ export class ArticleRepo {
       where.push('a.subscription_id = ?')
       params.push(query.subscriptionId)
     }
-    if (query.categoryId) {
-      const ids = categoryIds ?? [query.categoryId]
+    const requestedCategoryIds = query.categoryIds?.length
+      ? query.categoryIds
+      : query.categoryId
+        ? [query.categoryId]
+        : []
+    if (requestedCategoryIds.length) {
+      const ids = categoryIds ?? requestedCategoryIds
       where.push(
         `EXISTS (SELECT 1 FROM article_categories acc WHERE acc.article_id = a.id AND acc.status != 'rejected' AND acc.category_id IN (${ids
           .map(() => '?')

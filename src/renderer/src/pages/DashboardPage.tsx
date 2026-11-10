@@ -15,16 +15,18 @@ import {
   TrendingUp,
   Upload
 } from 'lucide-react'
-import type { Article, DashboardStats } from '@shared/types'
+import type { Article, DashboardStats, InterestProfile } from '@shared/types'
 import { useT } from '../i18n'
 import { useAppStore } from '../store/appStore'
+import { useArticleDisplay } from '../lib/articleText'
 import { cn, errorMessage, formatDate, relativeTime } from '../lib/utils'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/button'
 import { Badge, Dot } from '../components/ui/badge'
 import { Spinner } from '../components/ui/feedback'
 import { EmptyState, SectionTitle } from '../components/ui/layout-bits'
-import { CategoryChips, PdfBadge } from '../components/ArticleBits'
+import { CategoryChips, PdfBadge, TranslationBadge } from '../components/ArticleBits'
+import { InterestProfileCard } from '../components/InterestProfileCard'
 
 function StatCard({
   label,
@@ -99,6 +101,7 @@ function QuickAction({
 
 function ArticleRow({ article, onClick, showDate }: { article: Article; onClick: () => void; showDate: 'added' | 'published' }) {
   const { language } = useT()
+  const display = useArticleDisplay(article)
   return (
     <button
       type="button"
@@ -109,7 +112,12 @@ function ArticleRow({ article, onClick, showDate }: { article: Article; onClick:
         <FileText size={13} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="line-clamp-1 text-[12px] font-medium text-foreground group-hover:text-primary">{article.title}</div>
+        <div className="flex items-center gap-1">
+          <div className="line-clamp-1 min-w-0 text-[12px] font-medium text-foreground group-hover:text-primary">
+            {display.title}
+          </div>
+          <TranslationBadge translated={display.translatedTitle} />
+        </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
           <span className="max-w-[180px] truncate">{article.journalTitle ?? '—'}</span>
           <span className="opacity-40">·</span>
@@ -137,23 +145,41 @@ export function DashboardPage() {
   const setRoute = useAppStore((state) => state.setRoute)
   const settings = useAppStore((state) => state.settings)
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [profile, setProfile] = useState<InterestProfile | null>(null)
   const [reviewItems, setReviewItems] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [importing, setImporting] = useState(false)
 
   const load = async (): Promise<void> => {
     try {
-      const [dashboard, review] = await Promise.all([
+      const [dashboard, review, interest] = await Promise.all([
         window.api.dashboard.get(),
-        window.api.articles.list({ scope: 'library', needsReviewOnly: true, limit: 5, sort: 'publication_date' })
+        window.api.articles.list({ scope: 'library', needsReviewOnly: true, limit: 5, sort: 'publication_date' }),
+        window.api.interest.get()
       ])
       setStats(dashboard)
       setReviewItems(review.items)
+      setProfile(interest)
     } catch (error) {
       toast.error(errorMessage(error))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const refreshInterest = async (useAi: boolean): Promise<void> => {
+    setProfileLoading(true)
+    try {
+      const next = await window.api.interest.rebuild({ useAi })
+      setProfile(next)
+      if (next.warning) toast.warning(next.warning)
+      else toast.success(useAi ? t('interest.aiRebuilt') : t('interest.rebuilt'))
+    } catch (error) {
+      toast.error(errorMessage(error))
+    } finally {
+      setProfileLoading(false)
     }
   }
 
@@ -262,6 +288,14 @@ export function DashboardPage() {
                 onClick={() => setRoute('collections')}
               />
             </div>
+
+            <InterestProfileCard
+              profile={profile}
+              loading={profileLoading}
+              aiConfigured={Boolean(settings?.ai.apiKeySet && settings.ai.model)}
+              onRefresh={(useAi) => void refreshInterest(useAi)}
+              onOpenLibrary={() => setRoute('library')}
+            />
 
             {stats.totalPapers === 0 ? (
               <section className="rounded-xl border border-border/80 bg-card p-4">

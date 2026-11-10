@@ -53,6 +53,7 @@ import {
   AlertDialogTitle
 } from '../components/ui/alert-dialog'
 import { ContextMenu, type ContextMenuItem } from '../components/ui/context-menu'
+import { LocalizedArticleTitle } from '../components/ArticleBits'
 
 export function CollectionsPage() {
   const { t, language } = useT()
@@ -616,7 +617,11 @@ export function CollectionsPage() {
                             onClick={() => openArticle(article.id)}
                             className="block w-full border-b border-border/50 px-4 py-2.5 text-left transition hover:bg-muted/40"
                           >
-                            <div className="line-clamp-1 text-[12.5px] font-medium text-foreground">{article.title}</div>
+                            <LocalizedArticleTitle
+                              article={article}
+                              showBadge
+                              className="line-clamp-1 text-[12.5px] font-medium text-foreground"
+                            />
                             <div className="mt-0.5 flex items-center gap-2 text-[10.5px] text-muted-foreground">
                               <span className="max-w-[220px] truncate">{article.journalTitle ?? '—'}</span>
                               <span>·</span>

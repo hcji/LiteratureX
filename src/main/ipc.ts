@@ -106,8 +106,16 @@ export function registerIpcHandlers(ctx: AppContext, deps: IpcDependencies): voi
     if (error) throw new Error(error)
   })
 
-  // ---------- Dashboard ----------
+  // ---------- Dashboard / interest profile ----------
   handle('dashboard:get', () => ctx.dashboard())
+  handle('interest:get', () => ctx.interestProfile())
+  handle('interest:rebuild', (_event, options: unknown) => {
+    const payload = (options ?? {}) as { useAi?: unknown }
+    return ctx.rebuildInterestProfile({ useAi: payload.useAi === true })
+  })
+  handle('interest:evaluate', (_event, articleId: unknown, deep: unknown) =>
+    ctx.evaluateArticleMatch(idSchema.parse(articleId), deep === true)
+  )
 
   // ---------- Articles ----------
   handle('articles:list', (_event, query: unknown) => ctx.listArticles((query ?? {}) as ArticleQuery))
@@ -133,6 +141,19 @@ export function registerIpcHandlers(ctx: AppContext, deps: IpcDependencies): voi
     throw new Error('This article has no attached PDF, publisher URL, or DOI')
   })
   handle('articles:search', (_event, query: unknown) => ctx.search((query ?? {}) as ArticleQuery))
+  handle('articles:categoryCounts', (_event, scope: unknown, subscriptionId: unknown) => {
+    const value = z.enum(['library', 'discover']).parse(scope ?? 'discover')
+    const subscription = typeof subscriptionId === 'string' ? subscriptionId : undefined
+    return ctx.categoryCounts(value, subscription)
+  })
+  handle('articles:translations', (_event, ids: unknown, language: unknown) => {
+    const value = z.enum(['zh', 'en']).parse(language)
+    return ctx.cachedTranslations(idsSchema.parse(ids), value)
+  })
+  handle('articles:translate', (_event, ids: unknown, language: unknown, includeAbstract: unknown) => {
+    const value = z.enum(['zh', 'en']).parse(language)
+    return ctx.translateArticles(idsSchema.parse(ids), value, includeAbstract !== false)
+  })
   handle('articles:create', (_event, input: unknown) => {
     const payload = input as CreateArticleInput
     if (!payload?.title || typeof payload.title !== 'string') throw new Error('Title is required')
