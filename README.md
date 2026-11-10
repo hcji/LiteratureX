@@ -9,7 +9,7 @@ GitHub: <https://github.com/hcji/LiteratureX>
 
 Windows 10/11 x64 安装包与便携版：[最新 Release](https://github.com/hcji/LiteratureX/releases/latest)
 
-![Dashboard](docs/screenshots/dashboard.png)
+![Library](docs/screenshots/library.png)
 
 ## 功能
 
@@ -47,7 +47,7 @@ Windows 10/11 x64 安装包与便携版：[最新 Release](https://github.com/hc
 - **LLM 自动整理**：处理全部未分类文献；可设置最多新增类别数、用于生成新类别的抽样条数、是否发送全文（默认只发送题目与摘要）以及思考深度（默认中低）。新类别仅由抽样文献产生，低置信度分类会标记复核。
 - AI 分类体系改进建议（仅建议，用户确认后才创建分类/关键词）。
 
-![Classification](docs/screenshots/classification.png)
+![AI organize](docs/screenshots/organize.png)
 
 ### 搜索与 AI 助手
 - SQLite FTS5 统一检索：标题、摘要、作者、期刊、DOI、关键词、全文、AI 摘要、分类名、笔记。
