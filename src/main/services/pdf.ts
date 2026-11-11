@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { promises as fs, existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
+import { createPdfiumDirectEngine } from '@embedpdf/engines/pdfium'
 import type { PdfFile, PdfImportResult, PdfImportResultItem, PdfMetadataDraft } from '@shared/types'
 import { extractDois, isCjk, normalizeWhitespace, stripHtml, yearFromDate } from '@shared/normalize'
 import type { ArticleRepo } from '../db/repositories/articles'
@@ -8,14 +10,6 @@ import type { PdfRepo } from '../db/repositories/pdfs'
 import type { HttpService } from './http'
 import type { MetadataService } from './metadata'
 import type { SettingsService } from './settings'
-
-interface PdfTextItem {
-  str?: string
-  transform?: number[]
-  height?: number
-  width?: number
-  hasEOL?: boolean
-}
 
 interface ExtractedPdf {
   text: string
@@ -58,8 +52,10 @@ function authorFamilyName(author?: string | null): string {
   return parts[parts.length - 1] ?? value
 }
 
-async function loadPdfjs(): Promise<unknown> {
-  return import('pdfjs-dist/legacy/build/pdf.mjs')
+function pdfiumWasmPath(): string {
+  const req = typeof require === 'function' ? require : createRequire(path.join(process.cwd(), 'index.js'))
+  const entry = req.resolve('@embedpdf/pdfium')
+  return path.join(path.dirname(entry), 'pdfium.wasm')
 }
 
 function splitAuthors(value?: string | null): string[] {
@@ -85,25 +81,28 @@ interface PdfTextLine {
   text: string
 }
 
-function groupLines(items: PdfTextItem[]): PdfTextLine[] {
+function groupRuns(
+  runs: Array<{ text: string; fontSize: number; rect: { origin: { y: number } } }>
+): PdfTextLine[] {
   const lines = new Map<number, { text: string; size: number }>()
-  for (const item of items) {
-    if (!item.str?.trim() || !item.transform) continue
-    const y = Math.round(item.transform[5] ?? 0)
-    const size = Math.abs(item.height ?? item.transform[3] ?? 0)
+  for (const run of runs) {
+    const text = normalizeWhitespace(run.text)
+    if (!text) continue
+    const y = Math.round(run.rect.origin.y)
+    const size = Math.abs(run.fontSize)
     if (!Number.isFinite(y) || !Number.isFinite(size)) continue
     const existing = lines.get(y)
     if (existing) {
-      existing.text += ` ${item.str}`
+      existing.text += ` ${text}`
       existing.size = Math.max(existing.size, size)
     } else {
-      lines.set(y, { text: item.str, size })
+      lines.set(y, { text, size })
     }
   }
   return [...lines.entries()]
     .map(([y, value]) => ({ y, size: value.size, text: normalizeWhitespace(value.text) }))
     .filter((line) => line.text.length > 0)
-    .sort((a, b) => b.y - a.y)
+    .sort((a, b) => a.y - b.y)
 }
 
 function extractTitleFromLines(lines: PdfTextLine[]): string | undefined {
@@ -139,10 +138,6 @@ function extractCitation(lines: PdfTextLine[]): {
   return {}
 }
 
-function extractTitleFromItems(items: PdfTextItem[]): string | undefined {
-  return extractTitleFromLines(groupLines(items))
-}
-
 export interface PdfImportProgress {
   phase: 'scan' | 'file' | 'done'
   current: number
@@ -150,8 +145,10 @@ export interface PdfImportProgress {
   detail?: string
 }
 
+type PdfiumEngine = Awaited<ReturnType<typeof createPdfiumDirectEngine>>
+
 export class PdfService {
-  private readonly pdfjsPromise: Promise<unknown> = loadPdfjs()
+  private enginePromise: Promise<PdfiumEngine> | null = null
 
   constructor(
     private readonly deps: {
@@ -450,78 +447,101 @@ export class PdfService {
     return target
   }
 
+  private async engine(): Promise<PdfiumEngine> {
+    if (!this.enginePromise) {
+      this.enginePromise = (async () => {
+        const wasm = await fs.readFile(pdfiumWasmPath())
+        const wasmUrl = `data:application/wasm;base64,${wasm.toString('base64')}`
+        return createPdfiumDirectEngine(wasmUrl, { fontFallback: null })
+      })().catch((error) => {
+        this.enginePromise = null
+        throw error
+      })
+    }
+    return this.enginePromise
+  }
+
   async extract(buffer: Buffer): Promise<ExtractedPdf> {
-    const pdfjs = (await this.pdfjsPromise) as {
-      getDocument: (options: Record<string, unknown>) => { promise: Promise<PdfDocumentLike> }
-    }
-    const doc = await pdfjs.getDocument({
-      data: new Uint8Array(buffer),
-      useWorkerFetch: false,
-      isEvalSupported: false,
-      useSystemFonts: true,
-      disableFontFace: true
-    }).promise
-    const pages: string[] = []
-    let fullText = ''
-    const pageLimit = Math.min(doc.numPages, MAX_PAGES)
-    let firstItems: PdfTextItem[] = []
-    for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
-      const page = await doc.getPage(pageNumber)
-      const content = await page.getTextContent()
-      const items = content.items as PdfTextItem[]
-      if (pageNumber === 1) firstItems = items
-      const pageText = items
-        .map((item) => item.str ?? '')
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-      pages.push(pageText)
-      fullText += `${pageText}\n`
-      if (fullText.length > MAX_TEXT) break
-    }
-    fullText = fullText.slice(0, MAX_TEXT)
-    let info: Record<string, unknown> = {}
+    const engine = await this.engine()
+    const content = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength
+    ) as ArrayBuffer
+    const doc = await engine.openDocumentBuffer({ id: randomUUID(), content }).toPromise()
     try {
-      const metadata = await doc.getMetadata()
-      info = (metadata.info ?? {}) as Record<string, unknown>
-    } catch {
-      /* metadata is optional */
-    }
-    const infoTitle = typeof info.Title === 'string' ? normalizeWhitespace(stripHtml(info.Title)) : ''
-    const title = infoTitle && infoTitle.length > 8 && !/untitled|microsoft word|pdf/i.test(infoTitle)
-      ? infoTitle
-      : extractTitleFromItems(firstItems)
-    const authorValue =
-      (typeof info.Author === 'string' ? info.Author : '') ||
-      (typeof info.author === 'string' ? (info.author as string) : '')
-    const keywordsValue = typeof info.Keywords === 'string' ? info.Keywords : ''
-    const doi = extractDois(`${fullText.slice(0, 20000)} ${String(info.Subject ?? '')} ${keywordsValue}`)[0] ?? null
-    const citation = extractCitation(groupLines(firstItems))
-    const year =
-      yearFromDate(typeof info.CreationDate === 'string' ? info.CreationDate : null) ??
-      citation.year ??
-      yearFromDate(fullText.slice(0, 20000))
-    const pageCount = doc.numPages
-    await doc.destroy?.()
-    return {
-      text: fullText,
-      pages,
-      pageCount,
-      info,
-      title: title || undefined,
-      authors: splitAuthors(authorValue),
-      abstract: extractAbstract(fullText.slice(0, 20000)),
-      keywords: keywordsValue
-        .split(/[;,]/)
-        .map((item) => item.trim())
-        .filter((item) => item.length > 1 && item.length < 80)
-        .slice(0, 20),
-      doi: doi ?? undefined,
-      year: year ?? undefined,
-      journalTitle: citation.journalTitle,
-      volume: citation.volume,
-      issue: citation.issue,
-      pagesRange: citation.pagesRange
+      const pages: string[] = []
+      let fullText = ''
+      const pageLimit = Math.min(doc.pageCount, MAX_PAGES)
+      let firstRuns: Array<{ text: string; fontSize: number; rect: { origin: { y: number } } }> = []
+      for (let index = 0; index < pageLimit; index += 1) {
+        const { runs } = await engine.getPageTextRuns(doc, doc.pages[index]).toPromise()
+        if (index === 0) firstRuns = runs
+        const pageText = normalizeWhitespace(runs.map((run) => run.text).join(' '))
+        pages.push(pageText)
+        fullText += `${pageText}\n`
+        if (fullText.length > MAX_TEXT) break
+      }
+      fullText = fullText.slice(0, MAX_TEXT)
+
+      let metadata: {
+        title?: string | null
+        author?: string | null
+        subject?: string | null
+        keywords?: string | null
+        creationDate?: Date | null
+      } | null = null
+      try {
+        metadata = await engine.getMetadata(doc).toPromise()
+      } catch {
+        /* metadata is optional */
+      }
+      const info: Record<string, unknown> = metadata
+        ? {
+            Title: metadata.title ?? undefined,
+            Author: metadata.author ?? undefined,
+            Subject: metadata.subject ?? undefined,
+            Keywords: metadata.keywords ?? undefined,
+            CreationDate: metadata.creationDate?.toISOString() ?? undefined
+          }
+        : {}
+      const infoTitle = typeof info.Title === 'string' ? normalizeWhitespace(stripHtml(info.Title)) : ''
+      const firstLines = groupRuns(firstRuns)
+      const title =
+        infoTitle && infoTitle.length > 8 && !/untitled|microsoft word|pdf/i.test(infoTitle)
+          ? infoTitle
+          : extractTitleFromLines(firstLines)
+      const authorValue =
+        (typeof info.Author === 'string' ? info.Author : '') ||
+        (typeof info.author === 'string' ? (info.author as string) : '')
+      const keywordsValue = typeof info.Keywords === 'string' ? info.Keywords : ''
+      const doi = extractDois(`${fullText.slice(0, 20000)} ${String(info.Subject ?? '')} ${keywordsValue}`)[0] ?? null
+      const citation = extractCitation(firstLines)
+      const year =
+        yearFromDate(typeof info.CreationDate === 'string' ? info.CreationDate : null) ??
+        citation.year ??
+        yearFromDate(fullText.slice(0, 20000))
+      return {
+        text: fullText,
+        pages,
+        pageCount: doc.pageCount,
+        info,
+        title: title || undefined,
+        authors: splitAuthors(authorValue),
+        abstract: extractAbstract(fullText.slice(0, 20000)),
+        keywords: keywordsValue
+          .split(/[;,]/)
+          .map((item) => item.trim())
+          .filter((item) => item.length > 1 && item.length < 80)
+          .slice(0, 20),
+        doi: doi ?? undefined,
+        year: year ?? undefined,
+        journalTitle: citation.journalTitle,
+        volume: citation.volume,
+        issue: citation.issue,
+        pagesRange: citation.pagesRange
+      }
+    } finally {
+      await engine.closeDocument(doc).toPromise().catch(() => undefined)
     }
   }
 
@@ -604,11 +624,4 @@ export class PdfService {
   newId(): string {
     return randomUUID()
   }
-}
-
-interface PdfDocumentLike {
-  numPages: number
-  getPage: (pageNumber: number) => Promise<{ getTextContent: () => Promise<{ items: unknown[] }> }>
-  getMetadata: () => Promise<{ info?: Record<string, unknown> }>
-  destroy?: () => Promise<void>
 }

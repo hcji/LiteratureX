@@ -849,7 +849,7 @@ export function ArticleDetailPanel({
                     </Button>
                   </div>
                 </div>
-                <PdfViewer pdfId={activePdf.id} className="min-h-0 flex-1" />
+                <PdfViewer pdfId={activePdf.id} title={article.title} className="min-h-0 flex-1" />
               </div>
             ) : (
               <EmptyState

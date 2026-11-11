@@ -78,12 +78,13 @@ test('PDF preview renders in the library', async () => {
   })
   await page.getByText('Deep Learning for Predicting Tandem Mass Spectra', { exact: false }).first().click()
   await page.getByRole('tab', { name: 'PDF', exact: true }).click()
-  const canvas = page.locator('canvas').first()
-  await expect(canvas).toBeVisible({ timeout: 30_000 })
+  await expect(page.locator('embedpdf-container').first()).toBeVisible({ timeout: 30_000 })
+  const renderedPage = page.locator('embedpdf-container img').first()
+  await expect(renderedPage).toBeVisible({ timeout: 30_000 })
   await page.waitForTimeout(800)
-  const size = await canvas.evaluate((element) => {
-    const canvasElement = element as HTMLCanvasElement
-    return { width: canvasElement.width, height: canvasElement.height }
+  const size = await renderedPage.evaluate((element) => {
+    const image = element as HTMLImageElement
+    return { width: image.width || image.clientWidth, height: image.height || image.clientHeight }
   })
   expect(size.width).toBeGreaterThan(100)
   expect(size.height).toBeGreaterThan(100)

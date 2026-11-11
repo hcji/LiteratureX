@@ -9,6 +9,9 @@ directories:
 files:
   - out/**/*
   - package.json
+  # The reader runs with fontFallback disabled, so EmbedPDF's bundled font files are never loaded.
+  - "!node_modules/@embedpdf/fonts-*/**/*.ttf"
+  - "!node_modules/@embedpdf/fonts-*/**/*.otf"
 asar: true
 asarUnpack:
   - resources/**

@@ -1,6 +1,6 @@
 {
   "name": "literaturex",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "LiteratureX — local-first AI literature intelligence desktop app",
   "main": "out/main/index.js",
   "author": "LiteratureX",
@@ -19,15 +19,17 @@
     "release:unpacked": "npm run dist:dir"
   },
   "dependencies": {
+    "@embedpdf/engines": "^2.15.1",
+    "@embedpdf/pdfium": "^2.15.1",
     "archiver": "^8.0.0",
     "cheerio": "^1.2.0",
     "extract-zip": "^2.0.1",
-    "pdfjs-dist": "^6.5.438",
     "rss-parser": "^3.13.0",
     "selfsigned": "^5.5.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@embedpdf/react-pdf-viewer": "^2.15.1",
     "@playwright/test": "^1.65.0",
     "@radix-ui/react-alert-dialog": "^1.2.1",
     "@radix-ui/react-checkbox": "^1.4.1",

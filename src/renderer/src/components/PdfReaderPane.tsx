@@ -102,7 +102,7 @@ export function PdfReaderPane({
           <X size={15} />
         </IconButton>
       </header>
-      <PdfViewer pdfId={reader.pdfId} className="flex min-h-0 flex-1 flex-col" />
+      <PdfViewer pdfId={reader.pdfId} title={reader.title} className="flex min-h-0 flex-1 flex-col" />
       <ContextMenu
         open={!!menu}
         x={menu?.x ?? 0}

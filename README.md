@@ -29,10 +29,10 @@ Windows 10/11 x64 安装包与便携版：[最新 Release](https://github.com/hc
 ### 文献库（My Library）
 - 统一记录 RSS 元数据、手动引用、BibTeX/RIS/JSON 导入与 PDF。
 - 单文件 / 多文件 / 文件夹 / 拖拽导入 PDF；SHA-256 去重。
-- pdf.js 文本与元数据提取、DOI 识别、Crossref/OpenAlex/Semantic Scholar/PubMed 元数据补全。
+- EmbedPDF / PDFium（WebAssembly）文本与元数据提取、DOI 识别、Crossref/OpenAlex/Semantic Scholar/PubMed 元数据补全。
 - 托管存储（复制到应用目录）或链接存储（保留原位置）；删除文件需显式确认。
 - 三栏布局、可点击表头排序（标题/作者/期刊/年份/添加日期）、排序、筛选、多选、批量操作、软删除回收站。
-- 双击文献行在内置 PDF 阅读器中打开（连续滚动、缩放、适应宽度）；右键可改用系统应用打开；无 PDF 时回退到出版社页面或 DOI。
+- 双击文献行在内置 PDF 阅读器中打开（EmbedPDF / PDFium：连续滚动、缩放、适应页宽、全文搜索与结果高亮）；右键可改用系统应用打开；无 PDF 时回退到出版社页面或 DOI。
 - 右侧元数据栏可收起/显示；分类支持多选合并，并由 LLM 生成合并后的名称、描述与关键词。
 - 元数据编辑、笔记、阅读状态、收藏、PDF 预览。
 - 长耗时操作（PDF 导入、分类、LLM 整理、RSS 同步、备份等）在侧边栏任务列表、顶部进度条和页面内联进度中显示百分比或完成状态。
@@ -91,8 +91,8 @@ Windows 10/11 x64 安装包与便携版：[最新 Release](https://github.com/hc
 ## 下载与安装
 
 - [最新 Release](https://github.com/hcji/LiteratureX/releases/latest)
-  - `LiteratureX.Setup.0.2.2.exe`：Windows 安装包
-  - `LiteratureX.0.2.2.exe`：免安装便携版
+  - `LiteratureX.Setup.0.3.0.exe`：Windows 安装包
+  - `LiteratureX.0.3.0.exe`：免安装便携版
 - 系统要求：Windows 10/11 x64
 - 安装包未签名，首次运行可能被 Windows SmartScreen 提示
 - 首次启动为空库，可直接导入 PDF 或添加期刊
@@ -166,6 +166,7 @@ Windows 10/11 x64 安装包与便携版：[最新 Release](https://github.com/hc
 - Key 只在主进程解密，不进入渲染进程、不写入日志；数据库备份会移除加密 Key。
 - 分类与助手默认只发送标题、摘要、关键词和元数据，不发送 PDF 全文；可在设置中显式开启。
 - 兴趣画像默认完全本地计算；只有点击 **AI 优化** 时才发送分类/关键词统计与少量样例题名摘要。文章翻译会发送待翻译的标题与摘要，译文仅缓存在本机数据库。
+- PDF 渲染、文本提取与阅读器搜索全部由本地 PDFium WebAssembly 完成；PDF 内容不会上传到任何服务。
 
 ### 键盘快捷键
 
@@ -186,7 +187,7 @@ Windows 10/11 x64 安装包与便携版：[最新 Release](https://github.com/hc
 | 前端 | React 19 + TypeScript + Vite 8 + Tailwind CSS 4 + Radix primitives（shadcn 风格组件） |
 | 主进程 | Node/TypeScript 服务层；`contextIsolation` + `sandbox` + preload 类型化 IPC |
 | 数据库 | SQLite（`node:sqlite`，零原生模块） + FTS5 + 版本化迁移 |
-| PDF | pdfjs-dist（主进程文本提取；渲染进程连续滚动阅读器） |
+| PDF | EmbedPDF 2（PDFium WebAssembly；主进程文本提取 + 渲染进程阅读器/搜索） |
 | RSS | rss-parser + cheerio |
 | AI | OpenAI 兼容 `/chat/completions` + 本地启发式分类器 |
 | 测试 | Vitest（单元/集成）+ Playwright（Electron E2E） |
